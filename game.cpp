@@ -46,6 +46,8 @@ const static vec2 rocket_size(25, 24);
 const static float tank_radius = 8.5f;
 const static float rocket_radius = 10.f;
 
+ThreadPool thread_pool(std::thread::hardware_concurrency());
+
 // -----------------------------------------------------------
 // Initialize the application
 // -----------------------------------------------------------

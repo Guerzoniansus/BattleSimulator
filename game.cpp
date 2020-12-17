@@ -481,6 +481,7 @@ void add_tank_to_grid(Tank& tank)
 
 // -----------------------------------------------------------
 // Returns a vec2 with the col (x) and row (y) of this tank in the grid
+// Warning: it can return out of bounds values if the tank is outside the screen
 // -----------------------------------------------------------
 vec2 get_tank_grid_coord(float x, float y) 
 {
@@ -491,6 +492,9 @@ vec2 get_tank_grid_coord(float x, float y)
     return vector;
 }
 
+// -----------------------------------------------------------
+// Check if a coordinate is outside the screen 
+// -----------------------------------------------------------
 bool is_outside_of_screen(float x, float y)
 {
     return x < 0 || y < 0 || x > SCRWIDTH || y > SCRHEIGHT;

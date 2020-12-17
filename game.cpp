@@ -22,6 +22,7 @@ vector<Tank*> get_tank_collision_candidates(float x, float y);
 void remove_tank_from_grid(Tank& tank);
 void add_tank_to_grid(Tank& tank);
 vec2 get_tank_grid_coord(float x, float y);
+bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
 #define REF_PERFORMANCE 52615.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
@@ -405,11 +406,15 @@ void Game::tick(float deltaTime)
 // -----------------------------------------------------------
 vector<Tank*> get_tank_collision_candidates(float x, float y) 
 {
+    vector<Tank*> tanks;
+
+    // Dont count tanks that are outside the screen
+    if (is_outside_of_screen(x, y))
+        return tanks;
+
     vec2 coord = get_tank_grid_coord(x, y);
     int col = coord.x;
     int row = coord.y;
-
-    vector<Tank*> tanks;
 
     for (int offset_x = -1, offset_y = -1, i = 0; i < 9; i++, offset_x++) 
     {
@@ -444,6 +449,10 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
 // -----------------------------------------------------------
 void remove_tank_from_grid(Tank& tank) 
 {
+    // Dont count tanks that are outside the screen 
+    if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
+        return;
+
     vec2 coord = get_tank_grid_coord(tank.get_position().x, tank.get_position().y);
     int col = coord.x;
     int row = coord.y;
@@ -459,6 +468,10 @@ void remove_tank_from_grid(Tank& tank)
 // -----------------------------------------------------------
 void add_tank_to_grid(Tank& tank) 
 {
+    // Dont count tanks that are outside the screen
+    if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
+        return;
+
     vec2 coord = get_tank_grid_coord(tank.get_position().x, tank.get_position().y);
     int col = coord.x;
     int row = coord.y;
@@ -474,20 +487,11 @@ vec2 get_tank_grid_coord(float x, float y)
     int col = x / grid_col_width;
     int row = y / grid_col_height;
 
-    // Weird boundary checking because tanks can go outside of the screen
-    if (col < 0)
-        col = 0;
-
-    else if (col >= grid_col_amount)
-        col = grid_col_amount - 1;
-
-    if (row < 0)
-        row = 0;
-
-    else if (row >= grid_row_amount)
-        row = grid_row_amount - 1;
-
     vec2 vector(col, row);
-
     return vector;
+}
+
+bool is_outside_of_screen(float x, float y)
+{
+    return x < 0 || y < 0 || x > SCRWIDTH || y > SCRHEIGHT;
 }

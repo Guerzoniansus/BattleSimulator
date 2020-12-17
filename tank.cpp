@@ -53,6 +53,11 @@ void Tank::tick()
     force = vec2(0.f, 0.f);
 
     if (++current_frame > 8) current_frame = 0;
+
+    if (position.x < 0 
+        || position.x > SCRWIDTH ) {
+        cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << endl;
+    }
 }
 
 //Start reloading timer

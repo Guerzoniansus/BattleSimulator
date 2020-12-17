@@ -15,6 +15,7 @@ class Game
     void init();
     void shutdown();
     void update(float deltaTime);
+    void update_tanks();
     void draw();
     void tick(float deltaTime);
     void insertion_sort_tanks_health(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int begin, int end);

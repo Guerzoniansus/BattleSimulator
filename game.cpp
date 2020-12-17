@@ -1,5 +1,6 @@
 #include "precomp.h" // include (only) this in every .cpp file
 
+
 #define NUM_TANKS_BLUE 1279
 #define NUM_TANKS_RED 1279
 
@@ -16,8 +17,14 @@
 
 #define MAX_FRAMES 2000
 
+// Function declarations
+vector<Tank*> get_tank_collision_candidates(float x, float y);
+void remove_tank_from_grid(Tank& tank);
+void add_tank_to_grid(Tank& tank);
+vec2 get_tank_grid_coord(float x, float y);
+
 //Global performance timer
-#define REF_PERFORMANCE 73466 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 52615.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -46,7 +53,16 @@ const static vec2 rocket_size(25, 24);
 const static float tank_radius = 8.5f;
 const static float rocket_radius = 10.f;
 
+const static int grid_col_width = 14; // Tank width, using tank_size.x would give an error on the grid array so had to use ugly number
+const static int grid_col_height = 18; // Tank height, using tank_size.y would give an error on the grid array so had to use ugly number
+const static int grid_col_amount = (SCRWIDTH / grid_col_width) + 1;
+const static int grid_row_amount = (SCRHEIGHT / grid_col_height) + 1;
+
+// Grid of tanks used for collisions
+vector<Tank*> grid[grid_col_amount][grid_row_amount];
+
 ThreadPool thread_pool(std::thread::hardware_concurrency());
+
 
 // -----------------------------------------------------------
 // Initialize the application
@@ -71,12 +87,16 @@ void Game::init()
     //Spawn blue tanks
     for (int i = 0; i < NUM_TANKS_BLUE; i++)
     {
-        tanks.push_back(Tank(start_blue_x + ((i % max_rows) * spacing), start_blue_y + ((i / max_rows) * spacing), BLUE, &tank_blue, &smoke, 1200, 600, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED));
+        Tank tank(start_blue_x + ((i % max_rows) * spacing), start_blue_y + ((i / max_rows) * spacing), BLUE, &tank_blue, &smoke, 1200, 600, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
+        tanks.push_back(tank);
+        add_tank_to_grid(tank);
     }
     //Spawn red tanks
     for (int i = 0; i < NUM_TANKS_RED; i++)
     {
-        tanks.push_back(Tank(start_red_x + ((i % max_rows) * spacing), start_red_y + ((i / max_rows) * spacing), RED, &tank_red, &smoke, 80, 80, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED));
+        Tank tank(start_red_x + ((i % max_rows) * spacing), start_red_y + ((i / max_rows) * spacing), RED, &tank_red, &smoke, 80, 80, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
+        tanks.push_back(tank);
+        add_tank_to_grid(tank);
     }
 
     particle_beams.push_back(Particle_beam(vec2(SCRWIDTH / 2, SCRHEIGHT / 2), vec2(100, 50), &particle_beam_sprite, PARTICLE_BEAM_HIT_VALUE));
@@ -124,42 +144,7 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 // -----------------------------------------------------------
 void Game::update(float deltaTime)
 {
-    //Update tanks
-    for (Tank& tank : tanks)
-    {
-        if (tank.active)
-        {
-            //Check tank collision and nudge tanks away from each other
-            for (Tank& o_tank : tanks)
-            {
-                if (&tank == &o_tank) continue;
-                
-                vec2 dir = tank.get_position() - o_tank.get_position();
-                float dir_squared_len = dir.sqr_length();
-
-                float col_squared_len = (tank.get_collision_radius() + o_tank.get_collision_radius());
-                col_squared_len *= col_squared_len;
-
-                if (dir_squared_len < col_squared_len)
-                {
-                    tank.push(dir.normalized(), 1.f);
-                }
-            }
-
-            //Move tanks according to speed and nudges (see above) also reload
-            tank.tick();
-
-            //Shoot at closest target if reloaded
-            if (tank.rocket_reloaded())
-            {
-                Tank& target = find_closest_enemy(tank);
-
-                rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
-
-                tank.reload_rocket();
-            }
-        }
-    }
+    update_tanks();
 
     //Update smoke plumes
     for (Smoke& smoke : smokes)
@@ -218,6 +203,50 @@ void Game::update(float deltaTime)
     }
 
     explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
+}
+
+void Game::update_tanks() {
+    for (Tank& tank : tanks)
+    {
+        if (tank.active)
+        {
+            //Check tank collision and nudge tanks away from each other
+            for (Tank* o_tank : get_tank_collision_candidates(tank.get_position().x, tank.get_position().y))
+            {
+                if (&tank == o_tank) continue;
+
+                vec2 dir = tank.get_position() - (*o_tank).get_position();
+                float dir_squared_len = dir.sqr_length();
+
+                float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
+                col_squared_len *= col_squared_len;
+
+                if (dir_squared_len < col_squared_len)
+                {
+                    tank.push(dir.normalized(), 1.f);
+                }
+            }
+
+            // Remove tank from gid before x and y update
+            remove_tank_from_grid(tank);
+
+            //Move tanks according to speed and nudges (see above) also reload
+            tank.tick();
+
+            // Re-add tank to grid now that x and y update
+            add_tank_to_grid(tank);
+
+            //Shoot at closest target if reloaded
+            if (tank.rocket_reloaded())
+            {
+                Tank& target = find_closest_enemy(tank);
+
+                rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
+
+                tank.reload_rocket();
+            }
+        }
+    }
 }
 
 void Game::draw()
@@ -367,4 +396,98 @@ void Game::tick(float deltaTime)
     frame_count++;
     string frame_count_string = "FRAME: " + std::to_string(frame_count);
     frame_count_font->print(screen, frame_count_string.c_str(), 350, 580);
+}
+
+// -----------------------------------------------------------
+// Get tanks in the 8 grid squares around a
+// specific coordinate along with the square itself, 
+// which is enough for tank and rocket collision range. 
+// -----------------------------------------------------------
+vector<Tank*> get_tank_collision_candidates(float x, float y) 
+{
+    vec2 coord = get_tank_grid_coord(x, y);
+    int col = coord.x;
+    int row = coord.y;
+
+    vector<Tank*> tanks;
+
+    for (int offset_x = -1, offset_y = -1, i = 0; i < 9; i++, offset_x++) 
+    {
+        // Offset counts from -1 to 1 (top left to top right, mid left to mid right, bottom left to bottom right)
+        if (offset_x == 2) 
+        {
+            offset_x = -1;
+            offset_y++;
+        }
+
+        // Prevent index out of bounds errors
+        if (col + offset_x < 0 || row + offset_y < 0
+            || col + offset_x >= grid_col_amount
+            || row + offset_y >= grid_row_amount)
+        {
+            continue;
+        }
+
+        // Get the tanks in that grid square
+        for (Tank* tank : grid[col + offset_x][row + offset_y])
+        {
+            tanks.push_back(tank);
+        }
+    }
+
+    return tanks;
+}
+
+
+// -----------------------------------------------------------
+// Remove a tank from the grid 
+// -----------------------------------------------------------
+void remove_tank_from_grid(Tank& tank) 
+{
+    vec2 coord = get_tank_grid_coord(tank.get_position().x, tank.get_position().y);
+    int col = coord.x;
+    int row = coord.y;
+
+    vector<Tank*>& v = grid[col][row];
+
+    v.erase(std::remove(v.begin(), v.end(), &tank), v.end());
+}
+
+
+// -----------------------------------------------------------
+// Add a tank to the grid 
+// -----------------------------------------------------------
+void add_tank_to_grid(Tank& tank) 
+{
+    vec2 coord = get_tank_grid_coord(tank.get_position().x, tank.get_position().y);
+    int col = coord.x;
+    int row = coord.y;
+
+    grid[col][row].push_back(&tank);
+}
+
+// -----------------------------------------------------------
+// Returns a vec2 with the col (x) and row (y) of this tank in the grid
+// -----------------------------------------------------------
+vec2 get_tank_grid_coord(float x, float y) 
+{
+    int col = x / grid_col_width;
+    int row = y / grid_col_height;
+
+    // Weird boundary checking because tanks can go outside of the screen
+    if (col < 0)
+        col = 0;
+
+    else if (col >= grid_col_amount)
+        col = grid_col_amount - 1;
+
+    if (row < 0)
+        row = 0;
+
+    else if (row >= grid_row_amount)
+        row = grid_row_amount - 1;
+
+    vec2 vector(col, row);
+
+    return vector;
 }

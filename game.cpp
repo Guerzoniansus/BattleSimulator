@@ -21,7 +21,7 @@
 vector<Tank*> get_tank_collision_candidates(float x, float y);
 void remove_tank_from_grid(Tank& tank);
 void add_tank_to_grid(Tank& tank);
-vec2 get_tank_grid_coord(float x, float y);
+vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
@@ -412,7 +412,7 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
     if (is_outside_of_screen(x, y))
         return tanks;
 
-    vec2 coord = get_tank_grid_coord(x, y);
+    vec2 coord = get_tank_grid_coordinate(x, y);
     int col = coord.x;
     int row = coord.y;
 
@@ -453,7 +453,7 @@ void remove_tank_from_grid(Tank& tank)
     if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
         return;
 
-    vec2 coord = get_tank_grid_coord(tank.get_position().x, tank.get_position().y);
+    vec2 coord = get_tank_grid_coordinate(tank.get_position().x, tank.get_position().y);
     int col = coord.x;
     int row = coord.y;
 
@@ -472,7 +472,7 @@ void add_tank_to_grid(Tank& tank)
     if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
         return;
 
-    vec2 coord = get_tank_grid_coord(tank.get_position().x, tank.get_position().y);
+    vec2 coord = get_tank_grid_coordinate(tank.get_position().x, tank.get_position().y);
     int col = coord.x;
     int row = coord.y;
 
@@ -483,7 +483,7 @@ void add_tank_to_grid(Tank& tank)
 // Returns a vec2 with the col (x) and row (y) of this tank in the grid
 // Warning: it can return out of bounds values if the tank is outside the screen
 // -----------------------------------------------------------
-vec2 get_tank_grid_coord(float x, float y) 
+vec2 get_tank_grid_coordinate(float x, float y) 
 {
     int col = x / grid_col_width;
     int row = y / grid_col_height;

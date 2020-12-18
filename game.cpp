@@ -25,7 +25,7 @@ vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 52615.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 32800.0 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -62,7 +62,9 @@ const static int grid_row_amount = (SCRHEIGHT / grid_col_height) + 1;
 // Grid of tanks used for collisions
 vector<Tank*> grid[grid_col_amount][grid_row_amount];
 
-ThreadPool thread_pool(std::thread::hardware_concurrency());
+std::mutex myMutex;
+const static int amount_of_threads = thread::hardware_concurrency();
+ThreadPool thread_pool(amount_of_threads);
 
 
 // -----------------------------------------------------------
@@ -207,19 +209,27 @@ void Game::update(float deltaTime)
 }
 
 void Game::update_tanks() {
+    /*
     for (Tank& tank : tanks)
     {
+
         if (tank.active)
         {
+            vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
+
             //Check tank collision and nudge tanks away from each other
-            for (Tank* o_tank : get_tank_collision_candidates(tank.get_position().x, tank.get_position().y))
+            for (int i = 0; i < collision_candidates.size(); i++)
             {
+                Tank* o_tank = collision_candidates.at(i);
+
                 if (&tank == o_tank) continue;
 
                 vec2 dir = tank.get_position() - (*o_tank).get_position();
+
                 float dir_squared_len = dir.sqr_length();
 
                 float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
+
                 col_squared_len *= col_squared_len;
 
                 if (dir_squared_len < col_squared_len)
@@ -228,7 +238,6 @@ void Game::update_tanks() {
                 }
             }
 
-            // Remove tank from gid before x and y update
             remove_tank_from_grid(tank);
 
             //Move tanks according to speed and nudges (see above) also reload
@@ -247,7 +256,107 @@ void Game::update_tanks() {
                 tank.reload_rocket();
             }
         }
+    } 
+    */
+
+    
+    int upper_limit = tanks.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+
+    vector<future<void>*> futures;
+
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        // One extra loop for first N amount of threads
+        if (remaining > 0) {
+            end++;
+            remaining--;
+        }
+
+        future<void> fut = thread_pool.enqueue([&, start, end]  {
+
+            //Check tank collision and nudge tanks away from each other
+            for (int i = start; i < end; i++)
+            {
+                Tank& tank = tanks.at(i);
+                
+                if (tank.active)
+                {
+                    //lock.lock(); // [[[[[ L O C K ]]]]]
+                    vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
+                    //lock.unlock(); // [[[[[ U N L O C K ]] ] ] ]
+
+                    //Check tank collision and nudge tanks away from each other
+                    for (int i = 0; i < collision_candidates.size(); i++)
+                    {
+                        Tank* o_tank = collision_candidates.at(i);
+
+                        if (&tank == o_tank) continue;
+
+                        vec2 dir = tank.get_position() - (*o_tank).get_position();
+
+                        float dir_squared_len = dir.sqr_length();
+
+                        float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
+
+                        col_squared_len *= col_squared_len;
+
+                        if (dir_squared_len < col_squared_len)
+                        {
+                            tank.push(dir.normalized(), 1.f);
+                        }
+                    }
+
+
+                    std::unique_lock<std::mutex> lock(myMutex); // [[[[[ L O C K ]]]]]
+
+                    // Remove tank from gid before x and y update
+                    remove_tank_from_grid(tank);
+
+                    lock.unlock(); // [[[[[ U N L O C K ]]]]]
+
+                    //Move tanks according to speed and nudges (see above) also reload
+                    tank.tick();
+
+                    lock.lock(); // [[[[[ L O C K ]]]]]
+                    
+                    // Re-add tank to grid now that x and y update
+                    add_tank_to_grid(tank);
+
+                    lock.unlock(); // [[[[[ U N L O C K ]]]]]
+
+                    //Shoot at closest target if reloaded
+                    if (tank.rocket_reloaded())
+                    {
+                        lock.lock(); // [[[[[ L O C K ]]]]]
+
+                        Tank& target = find_closest_enemy(tank);
+
+                        rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
+
+                        lock.unlock(); // [[[[[ U N L O C K ]]]]]
+
+                        tank.reload_rocket();
+                    }
+                }
+            }   
+
+        }); 
+
+        start = end;
+
+        end += block_size;
+
     }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+    
 }
 
 void Game::draw()
@@ -406,15 +515,17 @@ void Game::tick(float deltaTime)
 // -----------------------------------------------------------
 vector<Tank*> get_tank_collision_candidates(float x, float y) 
 {
-    vector<Tank*> tanks;
+    vector<Tank*> candidate_tanks;
 
     // Dont count tanks that are outside the screen
     if (is_outside_of_screen(x, y))
-        return tanks;
+        return candidate_tanks;
 
     vec2 coord = get_tank_grid_coordinate(x, y);
     int col = coord.x;
     int row = coord.y;
+
+    vector<future<void>*> futures;
 
     for (int offset_x = -1, offset_y = -1, i = 0; i < 9; i++, offset_x++) 
     {
@@ -433,14 +544,32 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
             continue;
         }
 
-        // Get the tanks in that grid square
         for (Tank* tank : grid[col + offset_x][row + offset_y])
         {
-            tanks.push_back(tank);
+            candidate_tanks.push_back(tank);
         }
+
+        //future<void> fut = thread_pool.enqueue([offset_x, offset_y, col, row, &candidate_tanks]
+        //    {
+        //        // Get the tanks in that grid square
+        //        std::lock_guard<std::mutex> lock_guard(myMutex);
+
+        //        for (Tank* tank : grid[col + offset_x][row + offset_y])
+        //        {
+        //            candidate_tanks.push_back(tank);
+        //        }
+        //    });
+
+        //futures.push_back(&fut);
+        
     }
 
-    return tanks;
+    /*for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }*/
+
+    return candidate_tanks;
 }
 
 

@@ -17,12 +17,8 @@ class Game
     void update(float deltaTime);
     void draw();
     void tick(float deltaTime);
-    void insertion_sort_tanks_health(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int begin, int end);
-    void quick_sort(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high);
-    int partition(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high);
-    void swap(const Tank* original, const Tank* original2);
-    void merge_sort(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high);
-    void merge(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high, int mid);
+    void mergeSort(std::vector<const Tank*>& arr, int start, int end);
+    void merge(std::vector<const Tank*>& arr, int start, int middle, int end);
 
     void test();
 

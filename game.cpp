@@ -262,16 +262,31 @@ void Game::draw()
         explosion.draw(screen);
     }
 
+
     //Draw sorted health bars
     for (int t = 0; t < 2; t++)
     {
         const int NUM_TANKS = ((t < 1) ? NUM_TANKS_BLUE : NUM_TANKS_RED);
 
         const int begin = ((t < 1) ? 0 : NUM_TANKS_BLUE);
-        std::vector<const Tank*> sorted_tanks(1279);
-        quick_sort(tanks, sorted_tanks, begin, begin + NUM_TANKS);
-         //merge_sort(tanks, sorted_tanks, begin, begin + NUM_TANKS);
-        // insertion_sort_tanks_health(tanks, sorted_tanks, begin, begin + NUM_TANKS);
+
+        std::vector<const Tank*> sorted_tanks(NUM_TANKS);
+
+        if (t < 1) {
+            for (int i = 0; i < NUM_TANKS; i++)
+            {
+                sorted_tanks.at(i) = &tanks.at(i);
+            }
+            mergeSort(sorted_tanks, begin, begin + NUM_TANKS - 1);
+        }
+        else {
+            for (int i = 0; i < NUM_TANKS; i++)
+            {
+                int saveValue = i + begin;
+                sorted_tanks.at(i) = &tanks.at(saveValue);
+            }
+            mergeSort(sorted_tanks, begin - NUM_TANKS, begin - 1);
+        }
         for (int i = 0; i < NUM_TANKS; i++)
         {
             int health_bar_start_x = i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X;
@@ -284,153 +299,66 @@ void Game::draw()
         }
     }
 }
-/* The main function that implements QuickSort
-low --> Starting index,
-high --> Ending index */
-void Tmpl8::Game::quick_sort(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high)
-{
 
-    if (low < high)
-    {
-        /* pi is partitioning index, arr[p] is now
-        at right place */
-        int pi = partition(original, sorted_tanks, low, high);
+// merges two subarrays of array[].
+void Tmpl8::Game::merge(std::vector<const Tank*>& arr, int start, int middle, int end) {
 
-        // Separately sort elements before  
-        // partition and after partition  
-        quick_sort(original, sorted_tanks, low, pi - 1);
-        quick_sort(original, sorted_tanks, pi + 1, high);
+    int saveValue = ((middle - start) + 1);
+    int saveValue2 = (end - middle);
+    std::vector<const Tank*> leftArray(saveValue);
+    std::vector<const Tank*> rightArray(saveValue2);
+
+    // fill in left array
+    for (int i = 0; i < leftArray.size(); ++i) {
+        int saveValue = start + i;
+        leftArray[i] = arr[saveValue];
     }
-    if (low == NUM_TANKS_BLUE) {
-        for (int i = 0; i < NUM_TANKS_BLUE; i++) {
-            sorted_tanks.at(i) = &original.at(i);
-        }
+    // fill in right array
+    for (int i = 0; i < rightArray.size(); ++i) {
+        int saveValue = (middle + 1 + i);
+        rightArray[i] = arr[saveValue];
     }
-}
 
-/* This function takes last element as pivot, places
-the pivot element at its correct position in sorted
-array, and places all smaller (smaller than pivot)
-to left of pivot and all greater elements to right
-of pivot */
-int Tmpl8::Game::partition(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high)
-{
-    const Tank* pivot = &original.at(high);
-    //int pivot = sorted_tanks.compare_he; // pivot  
-    int i = (low - 1); // Index of smaller element  
-    for (int j = low; j <= high - 1; j++)
-    {
-        const Tank* current_checking_tank = &original.at(j); 
-        const Tank& pivot = original.at(high); 
-        // If current element is smaller than the pivot 
-        if (current_checking_tank->compare_health(pivot) == -1)
-        {
-            i++; // increment index of smaller element 
-            const Tank* current_tank = &original.at(i); 
-            swap(current_tank, current_checking_tank);
+    /* Merge the temp arrays */
+
+    // initial indexes of first and second subarrays
+    int leftIndex = 0, rightIndex = 0;
+
+    // the index we will start at when adding the subarrays back into the main array
+    int currentIndex = start;
+
+    // compare each index of the subarrays adding the lowest value to the currentIndex
+    while (leftIndex < leftArray.size() && rightIndex < rightArray.size()) {
+        if (leftArray[leftIndex]->health <= rightArray[rightIndex]->health) {
+            arr[currentIndex] = leftArray[leftIndex];
+            leftIndex++;
         }
+        else {
+            arr[currentIndex] = rightArray[rightIndex];
+            rightIndex++;
+        }
+        currentIndex++;
     }
-    i++; 
-    const Tank* current_tank = &original.at(i); 
-    swap(current_tank, pivot);
-    return (i);
+
+    // copy remaining elements of leftArray[] if any
+    while (leftIndex < leftArray.size()) arr[currentIndex++] = leftArray[leftIndex++];
+
+    // copy remaining elements of rightArray[] if any
+    while (rightIndex < rightArray.size()) arr[currentIndex++] = rightArray[rightIndex++];
 }
 
-// A utility function to swap two elements  
-void Tmpl8::Game::swap(const Tank* original, const Tank* original2)
-{
-    const Tank* save = original;
-    const Tank* save2 = original2;
-    original = save2;
-    original2 = save;
-}
+// main function that sorts array[start..end] using merge()
+void Tmpl8::Game::mergeSort(std::vector<const Tank*>& arr, int start, int end) {
+    // base case
+    if (start < end) {
+        // find the middle point
+        int middle = (start + end) / 2;
 
-void Tmpl8::Game::merge_sort(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high)
-{
-    int mid;
-    if (low < high) {
-        //divide the array at mid and sort independently using merge sort
-        mid = (low + high) / 2;
-        merge_sort(original, sorted_tanks, low, mid);
-        merge_sort(original, sorted_tanks, mid + 1, high);
-        //merge or conquer sorted arrays
-        merge(original, sorted_tanks, low, high, mid);
-    }
-}
-// Merge sort 
-void Tmpl8::Game::merge(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int low, int high, int mid)
-{
-    int i, j, k;
-    i = low;
-    k = low;
-    j = mid + 1;
-    std::vector<const Tank*> c(1279);
-        while (i <= mid && j <= high) {
-            const Tank* current_checking_tank = &original.at(i);
-            const Tank& pivot = original.at(j);
+        mergeSort(arr, start, middle); // sort first half
+        mergeSort(arr, middle + 1, end);  // sort second half
 
-            if (current_checking_tank->compare_health(pivot) == -1) {
-                c.at(k) = &original.at(i);
-                k++;
-                i++;
-            }
-            else {
-                c.at(k) = &original.at(j);
-                k++;
-                j++;
-            }
-        }
-        while (i <= mid) {
-            c.at(k) = &original.at(i);
-            k++;
-            i++;
-        }
-        while (j <= high) {
-            c.at(k) = &original.at(j);
-            k++;
-            j++;
-        }
-        for (i = low; i < k; i++) {
-            sorted_tanks.at(i) = c.at(i);
-        }
-}
-
-// read input array and call mergesort
-
-// -----------------------------------------------------------
-// Sort tanks by health value using insertion sort
-// -----------------------------------------------------------
-void Tmpl8::Game::insertion_sort_tanks_health(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int begin, int end)
-{
-    const int NUM_TANKS = end - begin;
-    sorted_tanks.reserve(NUM_TANKS);
-    sorted_tanks.emplace_back(&original.at(begin));
-
-    for (int i = begin + 1; i < (begin + NUM_TANKS); i++)
-    {
-        const Tank& current_tank = original.at(i);
-
-        for (int s = (int)sorted_tanks.size() -1; s >= 0; s--)
-        {
-            const Tank* current_checking_tank = sorted_tanks.at(s);
-
-            if (sorted_tanks.size() == 1278) {
-                cout << "fiets" << endl;
-            }
-
-            if ((current_checking_tank->compare_health(current_tank) <= 0))
-            {
-                sorted_tanks.insert(1 + sorted_tanks.begin() + s, &current_tank);
-                cout << s << endl;
-                break;
-            }
-
-            if (s == 0)
-            {
-                sorted_tanks.insert(sorted_tanks.begin(), &current_tank);
-                break;
-            }
-        }
+        // merge the sorted halves
+        merge(arr, start, middle, end);
     }
 }
 

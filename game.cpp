@@ -349,17 +349,44 @@ void Tmpl8::Game::merge(std::vector<const Tank*>& arr, int start, int middle, in
 
 // main function that sorts array[start..end] using merge()
 void Tmpl8::Game::mergeSort(std::vector<const Tank*>& arr, int start, int end) {
-    // base case
-    if (start < end) {
-        // find the middle point
-        int middle = (start + end) / 2;
+    int upper_limit = tanks.size();
+    int block_size = upper_limit / amount_of_threads;
+    int begin = 0;
+    int ending = begin + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
 
-        mergeSort(arr, start, middle); // sort first half
-        mergeSort(arr, middle + 1, end);  // sort second half
+    vector<future<void>*> futures;
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        // One extra loop for first N amount of threads
+        if (current_remaining > 0) {
+            ending++;
+            current_remaining--;
+        }
 
-        // merge the sorted halves
-        merge(arr, start, middle, end);
+        future<void> fut = thread_pool.enqueue([&, begin, ending] {
+            // base case
+            if (start < end) {
+                // find the middle point
+                int middle = (start + end) / 2;
+                mergeSort(arr, start, middle); // sort first half
+                mergeSort(arr, middle + 1, end);  // sort second half
+                // merge the sorted halves
+                std::unique_lock<std::mutex> lock(myMutex);
+                merge(arr, start, middle, end);
+                lock.unlock();
+            }
+            });
+        begin = ending;
+
+        ending += block_size;
     }
+    for (future<void>* fut : futures) {
+        (*fut).wait();
+    }
+
+    futures.clear();
 }
 
 // -----------------------------------------------------------

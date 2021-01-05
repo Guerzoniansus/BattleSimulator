@@ -278,16 +278,16 @@ void Game::draw()
                 sorted_tanks.at(i) = &tanks.at(i);
             }
             std::atomic<int> threads(amount_of_threads);
-            mergesort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
+            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
         }
         else {
             for (int i = 0; i < NUM_TANKS; i++)
             {
-                int saveValue = i + begin;
-                sorted_tanks.at(i) = &tanks.at(saveValue);
+                int save_value = i + begin;
+                sorted_tanks.at(i) = &tanks.at(save_value);
             }
             std::atomic<int> threads = amount_of_threads;
-            mergesort(sorted_tanks, begin - NUM_TANKS, begin - 1, threads);
+            merge_sort(sorted_tanks, begin - NUM_TANKS, begin - 1, threads);
         }
         for (int i = 0; i < NUM_TANKS; i++)
         {
@@ -350,34 +350,31 @@ void Tmpl8::Game::merge(std::vector<const Tank*>& sorted_tanks, int start, int m
 }
 
 // main function that sorts array[start..end] using merge()
-void Tmpl8::Game::mergesort(std::vector<const Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
+void Tmpl8::Game::merge_sort(std::vector<const Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
 
     if (start < end) {
         // find the middle point
         int middle = (start + end) / 2;
 
-        if (threads >= 3) {
-            threads -= 2;
+        if (threads >= 1) {
+            threads --;
 
             future<void> future_left = thread_pool.enqueue([&] {
-                mergesort(sorted_tanks, start, middle, threads);
+                merge_sort(sorted_tanks, start, middle, threads);
                 });
 
-            future<void> future_right = thread_pool.enqueue([&] {
-                mergesort(sorted_tanks, middle + 1, end, threads);
-                });
+            merge_sort(sorted_tanks, middle + 1, end, threads);
 
             future_left.wait();
-            future_right.wait();
 
-            threads += 2;
+            threads++;
 
             merge(sorted_tanks, start, middle, end);
         }
 
         else {
-            mergesort(sorted_tanks, start, middle, threads);
-            mergesort(sorted_tanks, middle + 1, end, threads);
+            merge_sort(sorted_tanks, start, middle, threads);
+            merge_sort(sorted_tanks, middle + 1, end, threads);
 
             merge(sorted_tanks, start, middle, end);
         }

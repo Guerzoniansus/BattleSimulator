@@ -319,7 +319,7 @@ void Tmpl8::Game::merge(std::vector<const Tank*>& arr, int start, int middle, in
         rightArray[i] = arr[saveValue];
     }
 
-    /* Merge the temp arrays */
+    /* Merge the temp vectors */
 
     // initial indexes of first and second subarrays
     int leftIndex = 0, rightIndex = 0;
@@ -349,44 +349,38 @@ void Tmpl8::Game::merge(std::vector<const Tank*>& arr, int start, int middle, in
 
 // main function that sorts array[start..end] using merge()
 void Tmpl8::Game::mergeSort(std::vector<const Tank*>& arr, int start, int end) {
-    int upper_limit = tanks.size();
-    int block_size = upper_limit / amount_of_threads;
+
+    int upper_limt = arr.size();
+    int block_size = upper_limt / amount_of_threads;
     int begin = 0;
-    int ending = begin + block_size;
-    int remaining = upper_limit % amount_of_threads;
-    int current_remaining = remaining;
+    int finish = begin + block_size;
+    int remaining = upper_limt & amount_of_threads;
+    int currrent_remaining = remaining;
 
     vector<future<void>*> futures;
-    for (int i = 0; i < amount_of_threads; i++)
-    {
-        // One extra loop for first N amount of threads
-        if (current_remaining > 0) {
-            ending++;
-            current_remaining--;
+
+        if (currrent_remaining > 0) {
+            finish++;
+            currrent_remaining--;
         }
+        if (start < end) {
+            // find the middle point
+            int middle = (start + end) / 2;
 
-        future<void> fut = thread_pool.enqueue([&, begin, ending] {
-            // base case
-            if (start < end) {
-                // find the middle point
-                int middle = (start + end) / 2;
-                mergeSort(arr, start, middle); // sort first half
-                mergeSort(arr, middle + 1, end);  // sort second half
-                // merge the sorted halves
-                std::unique_lock<std::mutex> lock(myMutex);
-                merge(arr, start, middle, end);
-                lock.unlock();
-            }
-            });
-        begin = ending;
+            future<void> fut = thread_pool.enqueue([&, begin, finish] {
+                mergeSort(arr, start, middle);
+                });
+            fut.wait();
+            mergeSort(arr, middle + 1, end);  // sort second half
+            // merge the sorted halves
+            merge(arr, start, middle, end);
+        }
+        begin = finish;
+        finish += block_size;
 
-        ending += block_size;
-    }
     for (future<void>* fut : futures) {
         (*fut).wait();
     }
-
-    futures.clear();
 }
 
 // -----------------------------------------------------------

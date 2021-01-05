@@ -17,8 +17,8 @@ class Game
     void update(float deltaTime);
     void draw();
     void tick(float deltaTime);
-    void mergeSort(std::vector<const Tank*>& tanks, int start, int end);
-    void merge(std::vector<const Tank*>& arr, int start, int middle, int end);
+    void mergesort(std::vector<const Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads);
+    void merge(std::vector<const Tank*>& sorted_tanks, int start, int middle, int end);
 
     void test();
 

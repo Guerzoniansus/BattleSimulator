@@ -277,7 +277,8 @@ void Game::draw()
             {
                 sorted_tanks.at(i) = &tanks.at(i);
             }
-            mergeSort(sorted_tanks, begin, begin + NUM_TANKS - 1);
+            std::atomic<int> threads(amount_of_threads);
+            mergesort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
         }
         else {
             for (int i = 0; i < NUM_TANKS; i++)
@@ -285,7 +286,8 @@ void Game::draw()
                 int saveValue = i + begin;
                 sorted_tanks.at(i) = &tanks.at(saveValue);
             }
-            mergeSort(sorted_tanks, begin - NUM_TANKS, begin - 1);
+            std::atomic<int> threads = amount_of_threads;
+            mergesort(sorted_tanks, begin - NUM_TANKS, begin - 1, threads);
         }
         for (int i = 0; i < NUM_TANKS; i++)
         {
@@ -300,87 +302,87 @@ void Game::draw()
     }
 }
 
-// merges two subarrays of array[].
-void Tmpl8::Game::merge(std::vector<const Tank*>& arr, int start, int middle, int end) {
+// merges two subvectors of vector.
+void Tmpl8::Game::merge(std::vector<const Tank*>& sorted_tanks, int start, int middle, int end) {
 
-    int saveValue = ((middle - start) + 1);
-    int saveValue2 = (end - middle);
-    std::vector<const Tank*> leftArray(saveValue);
-    std::vector<const Tank*> rightArray(saveValue2);
+    int save_value = ((middle - start) + 1);
+    int save_value2 = (end - middle);
+    std::vector<const Tank*> left_vector(save_value);
+    std::vector<const Tank*> right_vector(save_value2);
 
-    // fill in left array
-    for (int i = 0; i < leftArray.size(); ++i) {
-        int saveValue = start + i;
-        leftArray[i] = arr[saveValue];
+    // fill in left vector
+    for (int i = 0; i < left_vector.size(); ++i) {
+        save_value = start + i;
+        left_vector[i] = sorted_tanks[save_value];
     }
-    // fill in right array
-    for (int i = 0; i < rightArray.size(); ++i) {
-        int saveValue = (middle + 1 + i);
-        rightArray[i] = arr[saveValue];
+    // fill in right vector
+    for (int i = 0; i < right_vector.size(); ++i) {
+        save_value = (middle + 1 + i);
+        right_vector[i] = sorted_tanks[save_value];
     }
 
     /* Merge the temp vectors */
 
-    // initial indexes of first and second subarrays
-    int leftIndex = 0, rightIndex = 0;
+    // initial indexes of first and second subvector
+    int left_index = 0, right_index = 0;
 
-    // the index we will start at when adding the subarrays back into the main array
-    int currentIndex = start;
+    // the index we will start at when adding the subvector back into the main vector
+    int current_index = start;
 
-    // compare each index of the subarrays adding the lowest value to the currentIndex
-    while (leftIndex < leftArray.size() && rightIndex < rightArray.size()) {
-        if (leftArray[leftIndex]->health <= rightArray[rightIndex]->health) {
-            arr[currentIndex] = leftArray[leftIndex];
-            leftIndex++;
+    // compare each index of the subvector adding the lowest value to the currentIndex
+    while (left_index < left_vector.size() && right_index < right_vector.size()) {
+        if (left_vector[left_index]->health <= right_vector[right_index]->health) {
+            sorted_tanks[current_index] = left_vector[left_index];
+            left_index++;
         }
         else {
-            arr[currentIndex] = rightArray[rightIndex];
-            rightIndex++;
+            sorted_tanks[current_index] = right_vector[right_index];
+            right_index++;
         }
-        currentIndex++;
+        current_index++;
     }
 
-    // copy remaining elements of leftArray[] if any
-    while (leftIndex < leftArray.size()) arr[currentIndex++] = leftArray[leftIndex++];
+    // copy remaining elements of left_vector if any
+    while (left_index < left_vector.size()) sorted_tanks[current_index++] = left_vector[left_index++];
 
-    // copy remaining elements of rightArray[] if any
-    while (rightIndex < rightArray.size()) arr[currentIndex++] = rightArray[rightIndex++];
+    // copy remaining elements of right_vector if any
+    while (right_index < right_vector.size()) sorted_tanks[current_index++] = right_vector[right_index++];
 }
 
 // main function that sorts array[start..end] using merge()
-void Tmpl8::Game::mergeSort(std::vector<const Tank*>& arr, int start, int end) {
+void Tmpl8::Game::mergesort(std::vector<const Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
 
-    int upper_limt = arr.size();
-    int block_size = upper_limt / amount_of_threads;
-    int begin = 0;
-    int finish = begin + block_size;
-    int remaining = upper_limt & amount_of_threads;
-    int currrent_remaining = remaining;
+    if (start < end) {
+        // find the middle point
+        int middle = (start + end) / 2;
 
-    vector<future<void>*> futures;
+        if (threads >= 3) {
+            threads -= 2;
 
-        if (currrent_remaining > 0) {
-            finish++;
-            currrent_remaining--;
-        }
-        if (start < end) {
-            // find the middle point
-            int middle = (start + end) / 2;
-
-            future<void> fut = thread_pool.enqueue([&, begin, finish] {
-                mergeSort(arr, start, middle);
+            future<void> future_left = thread_pool.enqueue([&] {
+                mergesort(sorted_tanks, start, middle, threads);
                 });
-            fut.wait();
-            mergeSort(arr, middle + 1, end);  // sort second half
-            // merge the sorted halves
-            merge(arr, start, middle, end);
-        }
-        begin = finish;
-        finish += block_size;
 
-    for (future<void>* fut : futures) {
-        (*fut).wait();
+            future<void> future_right = thread_pool.enqueue([&] {
+                mergesort(sorted_tanks, middle + 1, end, threads);
+                });
+
+            future_left.wait();
+            future_right.wait();
+
+            threads += 2;
+
+            merge(sorted_tanks, start, middle, end);
+        }
+
+        else {
+            mergesort(sorted_tanks, start, middle, threads);
+            mergesort(sorted_tanks, middle + 1, end, threads);
+
+            merge(sorted_tanks, start, middle, end);
+        }
     }
+
 }
 
 // -----------------------------------------------------------

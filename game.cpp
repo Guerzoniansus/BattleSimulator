@@ -122,7 +122,77 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
     float closest_distance = numeric_limits<float>::infinity();
     int closest_index = 0;
 
-    for (int i = 0; i < tanks.size(); i++)
+    int loops = 0;
+    bool found_enemy = false;
+
+    vec2 grid_coordinate = get_tank_grid_coordinate(current_tank.get_position().x, current_tank.get_position().y);
+    int tank_col = grid_coordinate.x;
+    int tank_row = grid_coordinate.y;
+
+    Tank* closest_tank;
+
+    for (int offset_x = -1, offset_y = -1; found_enemy == false || offset_x < 2 + loops || offset_y < 2 + loops; offset_x++)
+    {
+        cout << "loops: " << loops << endl;
+        cout << "x: " << offset_x << endl;
+        cout << "y: " << offset_y << endl;
+
+        // Offset counts from -1 to 1 (top left to top right, mid left to mid right, bottom left to bottom right)
+        if (offset_x == 2 + loops)
+        {
+            if (offset_y == 2 + loops) {
+                loops++;
+                offset_y = -1 - loops;
+            }
+
+            else offset_y++;
+
+            offset_x = -1 - loops;
+        }
+
+        // Prevent index out of bounds errors
+        if (tank_col + offset_x < 0 || tank_row + offset_y < 0
+            || tank_col + offset_x >= grid_col_amount
+            || tank_row + offset_y >= grid_row_amount )
+        {
+            continue;
+        }
+
+        if (loops > 0) {
+            if (offset_x > -1 - loops && offset_y > -1 - loops
+                || offset_x < 1 + loops && offset_y < 1 + loops) {
+                continue;
+            }
+        }
+
+        cout << "hey" << endl;
+        cout << tank_col + offset_x << endl;
+        cout << tank_row + offset_y << endl;
+
+        for (Tank* other_tank : grid[tank_col + offset_x][tank_row + offset_y])
+        {
+            cout << "here1" << endl;;
+            if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
+            {
+                cout << "here2" << endl;
+                float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
+                if (sqr_dist < closest_distance)
+                {
+                    closest_distance = sqr_dist;
+                    closest_tank = other_tank;
+                    found_enemy = true;
+                    cout << "hoi" << endl;
+                    
+                }
+            }
+        }
+
+    }
+
+    cout << "yo" << endl;
+    cout << found_enemy << endl;
+
+    /*for (int i = 0; i < tanks.size(); i++)
     {
         if (tanks.at(i).allignment != current_tank.allignment && tanks.at(i).active)
         {
@@ -135,7 +205,9 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
         }
     }
 
-    return tanks.at(closest_index);
+    return tanks.at(closest_index);*/
+
+    return (*closest_tank);
 }
 
 // -----------------------------------------------------------
@@ -338,7 +410,7 @@ void Game::update_tanks() {
     end = start + block_size;
     current_remaining = remaining;
 
-    // ========================================= Rocket collision 
+    // ========================================= Shoot rockets 
 
     for (int i = 0; i < amount_of_threads; i++)
     {

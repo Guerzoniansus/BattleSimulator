@@ -122,11 +122,11 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 {
     float closest_distance = numeric_limits<float>::infinity();
 
-    int x_left_half = SCRWIDTH / 4;
-    int x_right_half = (SCRWIDTH / 3) * 2;
+    int x_left_half = frame_count < 400 ? SCRWIDTH * 0.4 : SCRWIDTH / 4;
+    int x_right_half = frame_count < 400 ? SCRWIDTH * 0.4 : (SCRWIDTH / 3) * 2;
 
     int left_line_col = grid_col_amount / 4;
-    int mid_line_col = grid_col_amount / 2;
+    int mid_line_col = grid_col_amount * 0.4;
     int right_line_col = (grid_col_amount / 4) * 3;
 
     // Tank is on left side of screen, only check enemies on right side

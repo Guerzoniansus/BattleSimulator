@@ -426,15 +426,33 @@ void Game::draw()
         explosion.draw(screen);
     }
 
+
     //Draw sorted health bars
     for (int t = 0; t < 2; t++)
     {
         const int NUM_TANKS = ((t < 1) ? NUM_TANKS_BLUE : NUM_TANKS_RED);
 
         const int begin = ((t < 1) ? 0 : NUM_TANKS_BLUE);
-        std::vector<const Tank*> sorted_tanks;
-        insertion_sort_tanks_health(tanks, sorted_tanks, begin, begin + NUM_TANKS);
 
+        std::vector<const Tank*> sorted_tanks(NUM_TANKS);
+
+        if (t < 1) {
+            for (int i = 0; i < NUM_TANKS; i++)
+            {
+                sorted_tanks.at(i) = &tanks.at(i);
+            }
+            std::atomic<int> threads(amount_of_threads);
+            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
+        }
+        else {
+            for (int i = 0; i < NUM_TANKS; i++)
+            {
+                int save_value = i + begin;
+                sorted_tanks.at(i) = &tanks.at(save_value);
+            }
+            std::atomic<int> threads = amount_of_threads;
+            merge_sort(sorted_tanks, begin - NUM_TANKS, begin - 1, threads);
+        }
         for (int i = 0; i < NUM_TANKS; i++)
         {
             int health_bar_start_x = i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X;
@@ -448,36 +466,84 @@ void Game::draw()
     }
 }
 
-// -----------------------------------------------------------
-// Sort tanks by health value using insertion sort
-// -----------------------------------------------------------
-void Tmpl8::Game::insertion_sort_tanks_health(const std::vector<Tank>& original, std::vector<const Tank*>& sorted_tanks, int begin, int end)
-{
-    const int NUM_TANKS = end - begin;
-    sorted_tanks.reserve(NUM_TANKS);
-    sorted_tanks.emplace_back(&original.at(begin));
+// merges two subvectors of vector.
+void Tmpl8::Game::merge(std::vector<const Tank*>& sorted_tanks, int start, int middle, int end) {
 
-    for (int i = begin + 1; i < (begin + NUM_TANKS); i++)
-    {
-        const Tank& current_tank = original.at(i);
+    int save_value = ((middle - start) + 1);
+    int save_value2 = (end - middle);
+    std::vector<const Tank*> left_vector(save_value);
+    std::vector<const Tank*> right_vector(save_value2);
 
-        for (int s = (int)sorted_tanks.size() - 1; s >= 0; s--)
-        {
-            const Tank* current_checking_tank = sorted_tanks.at(s);
+    // fill in left vector
+    for (int i = 0; i < left_vector.size(); ++i) {
+        save_value = start + i;
+        left_vector[i] = sorted_tanks[save_value];
+    }
+    // fill in right vector
+    for (int i = 0; i < right_vector.size(); ++i) {
+        save_value = (middle + 1 + i);
+        right_vector[i] = sorted_tanks[save_value];
+    }
 
-            if ((current_checking_tank->compare_health(current_tank) <= 0))
-            {
-                sorted_tanks.insert(1 + sorted_tanks.begin() + s, &current_tank);
-                break;
-            }
+    /* Merge the temp vectors */
 
-            if (s == 0)
-            {
-                sorted_tanks.insert(sorted_tanks.begin(), &current_tank);
-                break;
-            }
+    // initial indexes of first and second subvector
+    int left_index = 0, right_index = 0;
+
+    // the index we will start at when adding the subvector back into the main vector
+    int current_index = start;
+
+    // compare each index of the subvector adding the lowest value to the currentIndex
+    while (left_index < left_vector.size() && right_index < right_vector.size()) {
+        if (left_vector[left_index]->health <= right_vector[right_index]->health) {
+            sorted_tanks[current_index] = left_vector[left_index];
+            left_index++;
+        }
+        else {
+            sorted_tanks[current_index] = right_vector[right_index];
+            right_index++;
+        }
+        current_index++;
+    }
+
+    // copy remaining elements of left_vector if any
+    while (left_index < left_vector.size()) sorted_tanks[current_index++] = left_vector[left_index++];
+
+    // copy remaining elements of right_vector if any
+    while (right_index < right_vector.size()) sorted_tanks[current_index++] = right_vector[right_index++];
+}
+
+// main function that sorts array[start..end] using merge()
+void Tmpl8::Game::merge_sort(std::vector<const Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
+
+    if (start < end) {
+        // find the middle point
+        int middle = (start + end) / 2;
+
+        if (threads >= 1) {
+            threads --;
+
+            future<void> future_left = thread_pool.enqueue([&] {
+                merge_sort(sorted_tanks, start, middle, threads);
+                });
+
+            merge_sort(sorted_tanks, middle + 1, end, threads);
+
+            future_left.wait();
+
+            threads++;
+
+            merge(sorted_tanks, start, middle, end);
+        }
+
+        else {
+            merge_sort(sorted_tanks, start, middle, threads);
+            merge_sort(sorted_tanks, middle + 1, end, threads);
+
+            merge(sorted_tanks, start, middle, end);
         }
     }
+
 }
 
 // -----------------------------------------------------------

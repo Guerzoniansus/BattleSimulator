@@ -72,6 +72,7 @@ ThreadPool thread_pool(amount_of_threads);
 // -----------------------------------------------------------
 void Game::init()
 {
+    cout << grid_col_amount << endl;
     frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 
     tanks.reserve(NUM_TANKS_BLUE + NUM_TANKS_RED);
@@ -120,94 +121,93 @@ void Game::shutdown()
 Tank& Game::find_closest_enemy(Tank& current_tank)
 {
     float closest_distance = numeric_limits<float>::infinity();
-    int closest_index = 0;
 
-    int loops = 0;
-    bool found_enemy = false;
+    int x_left_half = SCRWIDTH / 4;
+    int x_right_half = (SCRWIDTH / 3) * 2;
 
-    vec2 grid_coordinate = get_tank_grid_coordinate(current_tank.get_position().x, current_tank.get_position().y);
-    int tank_col = grid_coordinate.x;
-    int tank_row = grid_coordinate.y;
+    int left_line_col = grid_col_amount / 4;
+    int mid_line_col = grid_col_amount / 2;
+    int right_line_col = (grid_col_amount / 4) * 3;
 
-    Tank* closest_tank;
+    // Tank is on left side of screen, only check enemies on right side
+    if (current_tank.get_position().x < x_left_half) {
+        Tank* closest_tank;
+        
+        // Loop through every grid square on the right
+        for (int col = mid_line_col; col < grid_col_amount - 1; col++) {
+            
+            // Check every y
+            for (int row = 0; row < grid_row_amount; row++) {
 
-    for (int offset_x = -1, offset_y = -1; found_enemy == false || offset_x < 2 + loops || offset_y < 2 + loops; offset_x++)
-    {
-        cout << "loops: " << loops << endl;
-        cout << "x: " << offset_x << endl;
-        cout << "y: " << offset_y << endl;
+                // Go through all tanks at that grid square
+                for (Tank* other_tank : grid[col][row]) {
+                    if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
+                    {
+                        float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
+                        if (sqr_dist < closest_distance)
+                        {
+                            closest_distance = sqr_dist;
+                            closest_tank = other_tank;
+                        }
+                    }
+                }
 
-        // Offset counts from -1 to 1 (top left to top right, mid left to mid right, bottom left to bottom right)
-        if (offset_x == 2 + loops)
-        {
-            if (offset_y == 2 + loops) {
-                loops++;
-                offset_y = -1 - loops;
             }
 
-            else offset_y++;
-
-            offset_x = -1 - loops;
         }
 
-        // Prevent index out of bounds errors
-        if (tank_col + offset_x < 0 || tank_row + offset_y < 0
-            || tank_col + offset_x >= grid_col_amount
-            || tank_row + offset_y >= grid_row_amount )
-        {
-            continue;
-        }
+        return *closest_tank;
+    }
 
-        if (loops > 0) {
-            if (offset_x > -1 - loops && offset_y > -1 - loops
-                || offset_x < 1 + loops && offset_y < 1 + loops) {
-                continue;
+    // Tank is on right side of screen, only check enemies on right side
+    else if (current_tank.get_position().x > x_right_half) {
+        Tank* closest_tank;
+
+        // Loop through every grid square on the left
+        for (int col = mid_line_col; col >= 0; col--) {
+
+            // Check every y
+            for (int row = 0; row < grid_row_amount; row++) {
+
+                // Go through all tanks at that grid square
+                for (Tank* other_tank : grid[col][row]) {
+                    if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
+                    {
+                        float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
+                        if (sqr_dist < closest_distance)
+                        {
+                            closest_distance = sqr_dist;
+                            closest_tank = other_tank;
+                        }
+                    }
+                }
+
             }
+
         }
 
-        cout << "hey" << endl;
-        cout << tank_col + offset_x << endl;
-        cout << tank_row + offset_y << endl;
+        return *closest_tank;
+    }
 
-        for (Tank* other_tank : grid[tank_col + offset_x][tank_row + offset_y])
+    else {
+        int closest_index = 0;
+
+        for (int i = 0; i < tanks.size(); i++)
         {
-            cout << "here1" << endl;;
-            if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
+            if (tanks.at(i).allignment != current_tank.allignment && tanks.at(i).active)
             {
-                cout << "here2" << endl;
-                float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
+                float sqr_dist = fabsf((tanks.at(i).get_position() - current_tank.get_position()).sqr_length());
                 if (sqr_dist < closest_distance)
                 {
                     closest_distance = sqr_dist;
-                    closest_tank = other_tank;
-                    found_enemy = true;
-                    cout << "hoi" << endl;
-                    
+                    closest_index = i;
                 }
             }
         }
 
+        return tanks.at(closest_index);
     }
 
-    cout << "yo" << endl;
-    cout << found_enemy << endl;
-
-    /*for (int i = 0; i < tanks.size(); i++)
-    {
-        if (tanks.at(i).allignment != current_tank.allignment && tanks.at(i).active)
-        {
-            float sqr_dist = fabsf((tanks.at(i).get_position() - current_tank.get_position()).sqr_length());
-            if (sqr_dist < closest_distance)
-            {
-                closest_distance = sqr_dist;
-                closest_index = i;
-            }
-        }
-    }
-
-    return tanks.at(closest_index);*/
-
-    return (*closest_tank);
 }
 
 // -----------------------------------------------------------

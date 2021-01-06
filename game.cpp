@@ -17,7 +17,7 @@
 #define MAX_FRAMES 2000
 
 //Global performance timer
-#define REF_PERFORMANCE 483676 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 73466 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -46,10 +46,8 @@ const static vec2 rocket_size(25, 24);
 const static float tank_radius = 8.5f;
 const static float rocket_radius = 10.f;
 
-std::mutex myMutex;
 const static int amount_of_threads = thread::hardware_concurrency();
 ThreadPool thread_pool(amount_of_threads);
-
 
 // -----------------------------------------------------------
 // Initialize the application
@@ -106,10 +104,10 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
     {
         if (tanks.at(i).allignment != current_tank.allignment && tanks.at(i).active)
         {
-            float sqr_dist = fabsf((tanks.at(i).get_position() - current_tank.get_position()).sqr_length());
-            if (sqr_dist < closest_distance)
+            float sqrDist = fabsf((tanks.at(i).get_position() - current_tank.get_position()).sqr_length());
+            if (sqrDist < closest_distance)
             {
-                closest_distance = sqr_dist;
+                closest_distance = sqrDist;
                 closest_index = i;
             }
         }
@@ -133,17 +131,17 @@ void Game::update(float deltaTime)
         if (tank.active)
         {
             //Check tank collision and nudge tanks away from each other
-            for (Tank& o_tank : tanks)
+            for (Tank& oTank : tanks)
             {
-                if (&tank == &o_tank) continue;
-                
-                vec2 dir = tank.get_position() - o_tank.get_position();
-                float dir_squared_len = dir.sqr_length();
+                if (&tank == &oTank) continue;
 
-                float col_squared_len = (tank.get_collision_radius() + o_tank.get_collision_radius());
-                col_squared_len *= col_squared_len;
+                vec2 dir = tank.get_position() - oTank.get_position();
+                float dirSquaredLen = dir.sqr_length();
 
-                if (dir_squared_len < col_squared_len)
+                float colSquaredLen = (tank.get_collision_radius() + oTank.get_collision_radius());
+                colSquaredLen *= colSquaredLen;
+
+                if (dirSquaredLen < colSquaredLen)
                 {
                     tank.push(dir.normalized(), 1.f);
                 }
@@ -236,10 +234,10 @@ void Game::draw()
     {
         tanks.at(i).draw(screen);
 
-        vec2 tank_pos = tanks.at(i).get_position();
+        vec2 tPos = tanks.at(i).get_position();
         // tread marks
-        if ((tank_pos.x >= 0) && (tank_pos.x < SCRWIDTH) && (tank_pos.y >= 0) && (tank_pos.y < SCRHEIGHT))
-            background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH] = sub_blend(background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH], 0x808080);
+        if ((tPos.x >= 0) && (tPos.x < SCRWIDTH) && (tPos.y >= 0) && (tPos.y < SCRHEIGHT))
+            background.get_buffer()[(int)tPos.x + (int)tPos.y * SCRWIDTH] = sub_blend(background.get_buffer()[(int)tPos.x + (int)tPos.y * SCRWIDTH], 0x808080);
     }
 
     for (Rocket& rocket : rockets)
@@ -261,7 +259,6 @@ void Game::draw()
     {
         explosion.draw(screen);
     }
-
 
     //Draw sorted health bars
     for (int t = 0; t < 2; t++)

@@ -83,7 +83,7 @@ int bottom_red_tank_y = 0;
 // Initialize the application
 // -----------------------------------------------------------
 void Game::init()
-{
+{   
     frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 
     tanks.reserve(NUM_TANKS_BLUE + NUM_TANKS_RED);
@@ -147,12 +147,14 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
     // Loop through every grid column from left to right
     for (int col = start_grid_coord.x; col <= end_grid_coord.x; col++) 
     {
+
         if (col < 0 || col >= grid_col_amount)
             continue; // Grid doesnt support tanks outside the screen 
 
         // Loop through every grid row from top to bottom
         for (int row = start_grid_coord.y; row <= end_grid_coord.y; row++) 
         {
+
             if (row < 0 || row >= grid_row_amount)
                 continue; // Grid doesnt support tanks outside the screen 
 

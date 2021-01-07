@@ -25,7 +25,7 @@ vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 28428 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 27840 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -72,7 +72,6 @@ ThreadPool thread_pool(amount_of_threads);
 // -----------------------------------------------------------
 void Game::init()
 {
-    cout << grid_col_amount << endl;
     frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 
     tanks.reserve(NUM_TANKS_BLUE + NUM_TANKS_RED);
@@ -122,49 +121,35 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 {
     float closest_distance = numeric_limits<float>::infinity();
 
-    int x_left_half = frame_count < 400 ? SCRWIDTH * 0.4 : SCRWIDTH / 4;
-    int x_right_half = frame_count < 400 ? SCRWIDTH * 0.4 : (SCRWIDTH / 3) * 2;
+    const double left_half_part = 0.25;
+    const double left_scans_right_start = 0.4;
 
-    int left_line_col = grid_col_amount / 4;
-    int mid_line_col = grid_col_amount * 0.4;
-    int right_line_col = (grid_col_amount / 4) * 3;
+    const double right_half_part = 0.66;
+    const double right_scans_left_start = 0.6;
 
-    // Tank is on left side of screen, only check enemies on right side
-    if (current_tank.get_position().x < x_left_half) {
+    const double mid_half_part = 0.45;
+
+    // Framecount < 400: middle half is at 0.4 of screen width
+    // Else: Left half is at 0.25, right half is at 0.66 of screen width
+    const int x_left_half = frame_count < 400 ? SCRWIDTH * mid_half_part : SCRWIDTH * left_half_part;
+    const int x_right_half = frame_count < 400 ? SCRWIDTH * mid_half_part : SCRWIDTH * right_half_part;
+
+
+    /*const int left_line_col = grid_col_amount * left_half_part;
+    const int mid_line_col = grid_col_amount * mid_half_part;
+    const int right_line_col = grid_col_amount * right_half_part;*/
+
+    const int x = current_tank.get_position().x;
+    const string side = x < x_left_half ? "left" : x > x_right_half ? "right" : "mid";
+
+    const int starting_col = side == "left" ? grid_col_amount * left_scans_right_start : grid_col_amount * right_scans_left_start;
+
+    if (side == "left" || side == "right") {
         Tank* closest_tank;
-        
+
         // Loop through every grid square on the right
-        for (int col = mid_line_col; col < grid_col_amount - 1; col++) {
-            
-            // Check every y
-            for (int row = 0; row < grid_row_amount; row++) {
-
-                // Go through all tanks at that grid square
-                for (Tank* other_tank : grid[col][row]) {
-                    if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
-                    {
-                        float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
-                        if (sqr_dist < closest_distance)
-                        {
-                            closest_distance = sqr_dist;
-                            closest_tank = other_tank;
-                        }
-                    }
-                }
-
-            }
-
-        }
-
-        return *closest_tank;
-    }
-
-    // Tank is on right side of screen, only check enemies on right side
-    else if (current_tank.get_position().x > x_right_half) {
-        Tank* closest_tank;
-
-        // Loop through every grid square on the left
-        for (int col = mid_line_col; col >= 0; col--) {
+        for (int col = starting_col; side == "left" ? col < grid_col_amount - 1 : col >= 0;
+            side == "left" ? col++ : col--) {
 
             // Check every y
             for (int row = 0; row < grid_row_amount; row++) {

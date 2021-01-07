@@ -23,9 +23,10 @@ void remove_tank_from_grid(Tank& tank);
 void add_tank_to_grid(Tank& tank);
 vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
+void update_tank_boundary_cache(Tank& tank);
 
 //Global performance timer
-#define REF_PERFORMANCE 27840 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 25262 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -65,6 +66,17 @@ vector<Tank*> grid[grid_col_amount][grid_row_amount];
 std::mutex myMutex;
 const static int amount_of_threads = thread::hardware_concurrency();
 ThreadPool thread_pool(amount_of_threads);
+
+// Keeping track of where the most left, top, right and bottom tank is
+int leftest_blue_tank_x = SCRWIDTH;
+int rightest_blue_tank_x = 0;
+int leftest_red_tank_x = SCRWIDTH;
+int rightest_red_tank_x = 0;
+
+int top_blue_tank_y = SCRHEIGHT;
+int bottom_blue_tank_y = 0;
+int top_red_tank_y = SCRHEIGHT;
+int bottom_red_tank_y = 0;
 
 
 // -----------------------------------------------------------
@@ -120,79 +132,49 @@ void Game::shutdown()
 Tank& Game::find_closest_enemy(Tank& current_tank)
 {
     float closest_distance = numeric_limits<float>::infinity();
+    Tank* closest_tank;
 
-    const double left_half_part = 0.25;
-    const double left_scans_right_start = 0.4;
+    const allignments enemy_alignment = current_tank.allignment == BLUE ? RED : BLUE;
 
-    const double right_half_part = 0.66;
-    const double right_scans_left_start = 0.6;
+    const int start_x = enemy_alignment == BLUE ? leftest_blue_tank_x : leftest_red_tank_x;
+    const int end_x = enemy_alignment == BLUE ? rightest_blue_tank_x : rightest_red_tank_x;
+    const int start_y = enemy_alignment == BLUE ? top_blue_tank_y : top_red_tank_y;
+    const int end_y = enemy_alignment == BLUE ? bottom_blue_tank_y : bottom_red_tank_y;
 
-    const double mid_half_part = 0.45;
+    const vec2 start_grid_coord = get_tank_grid_coordinate(start_x, start_y);
+    const vec2 end_grid_coord = get_tank_grid_coordinate(end_x, end_y);
 
-    // Framecount < 400: middle half is at 0.4 of screen width
-    // Else: Left half is at 0.25, right half is at 0.66 of screen width
-    const int x_left_half = frame_count < 400 ? SCRWIDTH * mid_half_part : SCRWIDTH * left_half_part;
-    const int x_right_half = frame_count < 400 ? SCRWIDTH * mid_half_part : SCRWIDTH * right_half_part;
+    // Loop through every grid column from left to right
+    for (int col = start_grid_coord.x; col <= end_grid_coord.x; col++) 
+    {
+        if (col < 0 || col >= grid_col_amount)
+            continue; // Grid doesnt support tanks outside the screen 
 
+        // Loop through every grid row from top to bottom
+        for (int row = start_grid_coord.y; row <= end_grid_coord.y; row++) 
+        {
+            if (row < 0 || row >= grid_row_amount)
+                continue; // Grid doesnt support tanks outside the screen 
 
-    /*const int left_line_col = grid_col_amount * left_half_part;
-    const int mid_line_col = grid_col_amount * mid_half_part;
-    const int right_line_col = grid_col_amount * right_half_part;*/
-
-    const int x = current_tank.get_position().x;
-    const string side = x < x_left_half ? "left" : x > x_right_half ? "right" : "mid";
-
-    const int starting_col = side == "left" ? grid_col_amount * left_scans_right_start : grid_col_amount * right_scans_left_start;
-
-    if (side == "left" || side == "right") {
-        Tank* closest_tank;
-
-        // Loop through every grid square on the right
-        for (int col = starting_col; side == "left" ? col < grid_col_amount - 1 : col >= 0;
-            side == "left" ? col++ : col--) {
-
-            // Check every y
-            for (int row = 0; row < grid_row_amount; row++) {
-
-                // Go through all tanks at that grid square
-                for (Tank* other_tank : grid[col][row]) {
-                    if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
+            // Go through all tanks at that grid square
+            for (Tank* other_tank : grid[col][row]) 
+            {
+                if ((*other_tank).allignment != current_tank.allignment && (*other_tank).active)
+                {
+                    float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
+                    if (sqr_dist < closest_distance)
                     {
-                        float sqr_dist = fabsf(((*other_tank).get_position() - current_tank.get_position()).sqr_length());
-                        if (sqr_dist < closest_distance)
-                        {
-                            closest_distance = sqr_dist;
-                            closest_tank = other_tank;
-                        }
+                        closest_distance = sqr_dist;
+                        closest_tank = other_tank;
                     }
                 }
-
             }
 
         }
 
-        return *closest_tank;
     }
 
-    else {
-        int closest_index = 0;
-
-        for (int i = 0; i < tanks.size(); i++)
-        {
-            if (tanks.at(i).allignment != current_tank.allignment && tanks.at(i).active)
-            {
-                float sqr_dist = fabsf((tanks.at(i).get_position() - current_tank.get_position()).sqr_length());
-                if (sqr_dist < closest_distance)
-                {
-                    closest_distance = sqr_dist;
-                    closest_index = i;
-                }
-            }
-        }
-
-        return tanks.at(closest_index);
-    }
-
+    return *closest_tank;
 }
 
 // -----------------------------------------------------------
@@ -266,6 +248,15 @@ void Game::update(float deltaTime)
 }
 
 void Game::update_tanks() {
+    int new_leftest_blue_tank_x = SCRWIDTH;
+    int new_rightest_blue_tank_x = 0;
+    int new_top_blue_tank_y = SCRHEIGHT;
+    int new_bottom_blue_tank_y = 0;
+
+    int new_leftest_red_tank_x = SCRWIDTH;
+    int new_rightest_red_tank_x = 0;
+    int new_top_red_tank_y = SCRHEIGHT;
+    int new_bottom_red_tank_y = 0;
     
     int upper_limit = tanks.size();
     int block_size = upper_limit / amount_of_threads;
@@ -286,7 +277,8 @@ void Game::update_tanks() {
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end]  {
+        future<void> fut = thread_pool.enqueue([&, start, end]  
+            {
 
             //Check tank collision and nudge tanks away from each other
             for (int i = start; i < end; i++)
@@ -347,12 +339,14 @@ void Game::update_tanks() {
     for (int i = 0; i < amount_of_threads; i++)
     {
         // One extra loop for first N amount of threads
-        if (current_remaining > 0) {
+        if (current_remaining > 0) 
+        {
             end++;
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end] {
+        future<void> fut = thread_pool.enqueue([&, start, end] 
+            {
 
             for (int i = start; i < end; i++)
             {
@@ -388,6 +382,58 @@ void Game::update_tanks() {
     {
         (*fut).wait();
     }
+
+    // ========= Update left, right, top and bottom tank cache
+
+    for (Tank& tank : tanks) 
+    {
+        if (tank.active)
+        {
+            int x = tank.get_position().x;
+            int y = tank.get_position().y;
+
+            if (tank.allignment == BLUE) 
+            {
+                if (x < new_leftest_blue_tank_x)
+                    new_leftest_blue_tank_x = x;
+
+                else if (x > new_rightest_blue_tank_x)
+                    new_rightest_blue_tank_x = x;
+
+                if (y < new_top_blue_tank_y)
+                    new_top_blue_tank_y = y;
+
+                else if (y > new_bottom_blue_tank_y)
+                    new_bottom_blue_tank_y = y;
+            }
+
+            else if (tank.allignment == RED) 
+            {
+                if (x < new_leftest_red_tank_x)
+                    new_leftest_red_tank_x = x;
+
+                else if (x > new_rightest_red_tank_x)
+                    new_rightest_red_tank_x = x;
+
+                if (y < new_top_red_tank_y)
+                    new_top_red_tank_y = y;
+
+                else if (y > new_bottom_red_tank_y)
+                    new_bottom_red_tank_y = y;
+            }
+        }
+    }
+
+    leftest_blue_tank_x = new_leftest_blue_tank_x;
+    rightest_blue_tank_x = new_rightest_blue_tank_x;
+    top_blue_tank_y = new_top_blue_tank_y;
+    bottom_blue_tank_y = new_bottom_blue_tank_y;
+
+    leftest_red_tank_x = new_leftest_red_tank_x;
+    rightest_red_tank_x = new_rightest_red_tank_x;
+    top_red_tank_y = new_top_red_tank_y;
+    bottom_red_tank_y = new_bottom_red_tank_y;
+
 
     futures.clear();
 

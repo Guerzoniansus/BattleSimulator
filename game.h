@@ -48,10 +48,14 @@ class Game
     { /* implement if you want to handle keys */
     }
 
+    void Tmpl8::Game::delete_dead_tank(allignments alignment, int index);
+
   private:
     Surface* screen;
 
     vector<Tank> tanks;
+    vector<Tank*> alive_blue_tanks;
+    vector<Tank*> alive_red_tanks;
     vector<Rocket> rockets;
     vector<Smoke> smokes;
     vector<Explosion> explosions;

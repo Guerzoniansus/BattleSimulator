@@ -25,7 +25,7 @@ vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 27660 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 25892 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -74,6 +74,8 @@ void Game::init()
     frame_count_font = new Font("assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789.");
 
     tanks.reserve(NUM_TANKS_BLUE + NUM_TANKS_RED);
+    alive_red_tanks.reserve(NUM_TANKS_RED);
+    alive_blue_tanks.reserve(NUM_TANKS_BLUE);
 
     uint rows = (uint)sqrt(NUM_TANKS_BLUE + NUM_TANKS_RED);
     uint max_rows = 12;
@@ -91,6 +93,7 @@ void Game::init()
     {
         Tank tank(start_blue_x + ((i % max_rows) * spacing), start_blue_y + ((i / max_rows) * spacing), BLUE, &tank_blue, &smoke, 1200, 600, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
         tanks.push_back(tank);
+        alive_blue_tanks.push_back(&tanks.at(i));
         add_tank_to_grid(tank);
     }
     //Spawn red tanks
@@ -98,6 +101,7 @@ void Game::init()
     {
         Tank tank(start_red_x + ((i % max_rows) * spacing), start_red_y + ((i / max_rows) * spacing), RED, &tank_red, &smoke, 80, 80, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
         tanks.push_back(tank);
+        alive_red_tanks.push_back(&tanks.at(i + NUM_TANKS_BLUE));
         add_tank_to_grid(tank);
     }
 
@@ -119,28 +123,25 @@ void Game::shutdown()
 Tank& Game::find_closest_enemy(Tank& current_tank)
 {
     const allignments enemy_alignment = current_tank.allignment == BLUE ? RED : BLUE;
-
-    // First half of tanks are blue, second half are red
-    int starting_index = enemy_alignment == BLUE ? 0 : NUM_TANKS_BLUE;
-    int ending_index = enemy_alignment == BLUE ? NUM_TANKS_BLUE : tanks.size();
+    vector<Tank*>& enemies = enemy_alignment == BLUE ? alive_blue_tanks : alive_red_tanks;
 
     float closest_distance = numeric_limits<float>::infinity();
     int closest_index = 0;
-
-    for (int i = starting_index; i < ending_index; i++)
+    
+    for (int i = 0; i < enemies.size(); i++)
     {
-        if (tanks.at(i).allignment != current_tank.allignment && tanks.at(i).active)
+        Tank& enemy = *enemies.at(i);
+        //if (is_outside_of_screen(enemy.get_position().x, enemy.get_position().y)) continue;
+
+        float sqr_dist = fabsf((enemy.get_position() - current_tank.get_position()).sqr_length());
+        if (sqr_dist < closest_distance)
         {
-            float sqr_dist = fabsf((tanks.at(i).get_position() - current_tank.get_position()).sqr_length());
-            if (sqr_dist < closest_distance)
-            {
-                closest_distance = sqr_dist;
-                closest_index = i;
-            }
+            closest_distance = sqr_dist;
+            closest_index = i;
         }
     }
 
-    return tanks.at(closest_index);
+    return *enemies.at(closest_index);
 }
 
 // -----------------------------------------------------------
@@ -152,6 +153,9 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 // -----------------------------------------------------------
 void Game::update(float deltaTime)
 {
+    if (frame_count == 1000 || frame_count == 1800) {
+        cout << NUM_TANKS_BLUE + NUM_TANKS_RED - alive_blue_tanks.size() - alive_red_tanks.size();
+    }
     update_tanks();
 
     //Update smoke plumes
@@ -166,19 +170,27 @@ void Game::update(float deltaTime)
         rocket.tick();
 
         //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
-        for (Tank& tank : tanks)
+        for (int side = 0; side < 2; side++)
         {
-            if (tank.active && (tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
+            vector<Tank*>& tanks_to_loop_through = side == 0 ? alive_blue_tanks : alive_red_tanks;
+
+            for (int i = 0; i < tanks_to_loop_through.size(); i++) 
             {
-                explosions.push_back(Explosion(&explosion, tank.position));
+                Tank& tank = *tanks_to_loop_through.at(i);
 
-                if (tank.hit(ROCKET_HIT_VALUE))
+                if (tank.active && (tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
                 {
-                    smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                }
+                    explosions.push_back(Explosion(&explosion, tank.position));
 
-                rocket.active = false;
-                break;
+                    if (tank.hit(ROCKET_HIT_VALUE))
+                    {
+                        smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                        delete_dead_tank(tanks_to_loop_through.at(i)->allignment, i);
+                    }
+
+                    rocket.active = false;
+                    break;
+                }
             }
         }
     }
@@ -192,13 +204,21 @@ void Game::update(float deltaTime)
         particle_beam.tick(tanks);
 
         //Damage all tanks within the damage window of the beam (the window is an axis-aligned bounding box)
-        for (Tank& tank : tanks)
+        for (int side = 0; side < 2; side++)
         {
-            if (tank.active && particle_beam.rectangle.intersects_circle(tank.get_position(), tank.get_collision_radius()))
+            vector<Tank*>& tanks_to_loop_through = side == 0 ? alive_blue_tanks : alive_red_tanks;
+
+            for (int i = 0; i < tanks_to_loop_through.size(); i++) 
             {
-                if (tank.hit(particle_beam.damage))
+                Tank& tank = *tanks_to_loop_through.at(i);
+
+                if (tank.active && particle_beam.rectangle.intersects_circle(tank.get_position(), tank.get_collision_radius()))
                 {
-                    smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                    if (tank.hit(particle_beam.damage))
+                    {
+                        smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                        delete_dead_tank(tanks_to_loop_through.at(i)->allignment, i);
+                    }
                 }
             }
         }
@@ -240,35 +260,34 @@ void Game::update_tanks() {
             //Check tank collision and nudge tanks away from each other
             for (int i = start; i < end; i++)
             {
-                Tank& tank = tanks.at(i);
+                vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
+                int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
+
+                Tank& tank = *tanks_to_loop_through.at(i - offset);
                 
-                if (tank.active)
+                std::unique_lock<std::mutex> lock(myMutex);
+                vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
+                lock.unlock();
+
+                //Check tank collision and nudge tanks away from each other
+                for (int i = 0; i < collision_candidates.size(); i++)
                 {
-                    std::unique_lock<std::mutex> lock(myMutex);
-                    vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
-                    lock.unlock();
+                    Tank* o_tank = collision_candidates.at(i);
 
-                    //Check tank collision and nudge tanks away from each other
-                    for (int i = 0; i < collision_candidates.size(); i++)
+                    if (&tank == o_tank) continue;
+
+                    vec2 dir = tank.get_position() - (*o_tank).get_position();
+
+                    float dir_squared_len = dir.sqr_length();
+
+                    float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
+
+                    col_squared_len *= col_squared_len;
+
+                    if (dir_squared_len < col_squared_len)
                     {
-                        Tank* o_tank = collision_candidates.at(i);
-
-                        if (&tank == o_tank) continue;
-
-                        vec2 dir = tank.get_position() - (*o_tank).get_position();
-
-                        float dir_squared_len = dir.sqr_length();
-
-                        float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
-
-                        col_squared_len *= col_squared_len;
-
-                        if (dir_squared_len < col_squared_len)
-                        {
-                            tank.push(dir.normalized(), 1.f);
-                        }
+                        tank.push(dir.normalized(), 1.f);
                     }
-
                 }
             }   
 
@@ -307,24 +326,24 @@ void Game::update_tanks() {
 
             for (int i = start; i < end; i++)
             {
-                Tank& tank = tanks.at(i);
+                vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
+                int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
 
-                if (tank.active)
-                {
-                    std::unique_lock<std::mutex> lock(myMutex);
+                Tank& tank = *tanks_to_loop_through.at(i - offset);
 
-                    // Update grid position and move tank
+                std::unique_lock<std::mutex> lock(myMutex);
 
-                    remove_tank_from_grid(tank);
+                // Update grid position and move tank
 
-                    lock.unlock();
+                remove_tank_from_grid(tank);
 
-                    tank.tick();
+                lock.unlock();
 
-                    lock.lock();
+                tank.tick();
 
-                    add_tank_to_grid(tank);
-                }
+                lock.lock();
+
+                add_tank_to_grid(tank);
             }
 
             });
@@ -361,23 +380,23 @@ void Game::update_tanks() {
 
             for (int i = start; i < end; i++)
             {
-                Tank& tank = tanks.at(i);
+                vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
+                int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
 
-                if (tank.active)
+                Tank& tank = *tanks_to_loop_through.at(i - offset);
+
+                //Shoot at closest target if reloaded
+                if (tank.rocket_reloaded())
                 {
-                    //Shoot at closest target if reloaded
-                    if (tank.rocket_reloaded())
-                    {
-                        std::unique_lock<std::mutex> lock(myMutex);
+                    std::unique_lock<std::mutex> lock(myMutex);
 
-                        Tank& target = find_closest_enemy(tank);
+                    Tank& target = find_closest_enemy(tank);
 
-                        rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
+                    rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
 
-                        lock.unlock(); 
+                    lock.unlock();
 
-                        tank.reload_rocket();
-                    }
+                    tank.reload_rocket();
                 }
             }
 
@@ -730,4 +749,11 @@ vec2 get_tank_grid_coordinate(float x, float y)
 bool is_outside_of_screen(float x, float y)
 {
     return x < 0 || y < 0 || x > SCRWIDTH || y > SCRHEIGHT;
+}
+
+// -----------------------------------------------------------
+// Remove a dead tank from the list of alive tanks 
+// -----------------------------------------------------------
+void Tmpl8::Game::delete_dead_tank(allignments alignment, int index) {
+    alignment == BLUE ? alive_blue_tanks.erase(alive_blue_tanks.begin() + index) : alive_red_tanks.erase(alive_red_tanks.begin() + index);
 }

@@ -153,9 +153,6 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 // -----------------------------------------------------------
 void Game::update(float deltaTime)
 {
-    if (frame_count == 1000 || frame_count == 1800) {
-        cout << NUM_TANKS_BLUE + NUM_TANKS_RED - alive_blue_tanks.size() - alive_red_tanks.size();
-    }
     update_tanks();
 
     //Update smoke plumes

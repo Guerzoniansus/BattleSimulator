@@ -25,7 +25,7 @@ vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 24266.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 20254.3 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -166,28 +166,25 @@ void Game::update(float deltaTime)
     {
         rocket.tick();
 
+        vector<Tank*>& tanks_to_loop_through = rocket.allignment == BLUE ? alive_red_tanks : alive_blue_tanks;
+
         //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
-        for (int side = 0; side < 2; side++)
+        for (int i = 0; i < tanks_to_loop_through.size(); i++)
         {
-            vector<Tank*>& tanks_to_loop_through = side == 0 ? alive_blue_tanks : alive_red_tanks;
+            Tank& tank = *tanks_to_loop_through.at(i);
 
-            for (int i = 0; i < tanks_to_loop_through.size(); i++) 
+            if (rocket.intersects(tank.position, tank.collision_radius))
             {
-                Tank& tank = *tanks_to_loop_through.at(i);
+                explosions.push_back(Explosion(&explosion, tank.position));
 
-                if ((tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
+                if (tank.hit(ROCKET_HIT_VALUE))
                 {
-                    explosions.push_back(Explosion(&explosion, tank.position));
-
-                    if (tank.hit(ROCKET_HIT_VALUE))
-                    {
-                        smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                        delete_dead_tank(tank.allignment, i);
-                    }
-
-                    rocket.active = false;
-                    break;
+                    smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                    delete_dead_tank(tank.allignment, i);
                 }
+
+                rocket.active = false;
+                break;
             }
         }
     }

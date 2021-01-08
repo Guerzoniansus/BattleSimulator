@@ -25,7 +25,7 @@ vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 25892 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 24266.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -178,14 +178,14 @@ void Game::update(float deltaTime)
             {
                 Tank& tank = *tanks_to_loop_through.at(i);
 
-                if (tank.active && (tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
+                if ((tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
                 {
                     explosions.push_back(Explosion(&explosion, tank.position));
 
                     if (tank.hit(ROCKET_HIT_VALUE))
                     {
                         smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                        delete_dead_tank(tanks_to_loop_through.at(i)->allignment, i);
+                        delete_dead_tank(tank.allignment, i);
                     }
 
                     rocket.active = false;
@@ -212,12 +212,12 @@ void Game::update(float deltaTime)
             {
                 Tank& tank = *tanks_to_loop_through.at(i);
 
-                if (tank.active && particle_beam.rectangle.intersects_circle(tank.get_position(), tank.get_collision_radius()))
+                if (particle_beam.rectangle.intersects_circle(tank.get_position(), tank.get_collision_radius()))
                 {
                     if (tank.hit(particle_beam.damage))
                     {
                         smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                        delete_dead_tank(tanks_to_loop_through.at(i)->allignment, i);
+                        delete_dead_tank(tank.allignment, i);
                     }
                 }
             }
@@ -670,26 +670,8 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
         {
             candidate_tanks.push_back(tank);
         }
-
-        //future<void> fut = thread_pool.enqueue([offset_x, offset_y, col, row, &candidate_tanks]
-        //    {
-        //        // Get the tanks in that grid square
-        //        std::lock_guard<std::mutex> lock_guard(myMutex);
-
-        //        for (Tank* tank : grid[col + offset_x][row + offset_y])
-        //        {
-        //            candidate_tanks.push_back(tank);
-        //        }
-        //    });
-
-        //futures.push_back(&fut);
         
     }
-
-    /*for (future<void>* fut : futures)
-    {
-        (*fut).wait();
-    }*/
 
     return candidate_tanks;
 }

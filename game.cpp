@@ -650,8 +650,6 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
     int col = coord.x;
     int row = coord.y;
 
-    vector<future<void>*> futures;
-
     for (int offset_x = -1, offset_y = -1, i = 0; i < 9; i++, offset_x++) 
     {
         // Offset counts from -1 to 1 (top left to top right, mid left to mid right, bottom left to bottom right)

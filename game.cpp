@@ -171,35 +171,7 @@ void Game::update(float deltaTime)
     }
 
     //Update rockets
-    for (Rocket& rocket : rockets)
-    {
-        rocket.tick();
-
-        vector<Tank*>& tanks_to_loop_through = rocket.allignment == BLUE ? alive_red_tanks : alive_blue_tanks;
-
-        //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
-        for (int i = 0; i < tanks_to_loop_through.size(); i++)
-        {
-            Tank& tank = *tanks_to_loop_through.at(i);
-
-            if (rocket.intersects(tank.position, tank.collision_radius))
-            {
-                explosions.push_back(Explosion(&explosion, tank.position));
-
-                if (tank.hit(ROCKET_HIT_VALUE))
-                {
-                    smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                    delete_dead_tank(tank.allignment, i);
-                }
-
-                rocket.active = false;
-                break;
-            }
-        }
-    }
-
-    //Remove exploded rockets with remove erase idiom
-    rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
+    update_rockets();
 
     //Update particle beams
     for (Particle_beam& particle_beam : particle_beams)
@@ -415,6 +387,38 @@ void Game::update_tanks() {
     {
         (*fut).wait();
     }
+
+}
+
+void Game::update_rockets() 
+{
+    for (Rocket& rocket : rockets)
+    {
+        rocket.tick();
+
+        vector<Tank*>& tanks_to_loop_through = rocket.allignment == BLUE ? alive_red_tanks : alive_blue_tanks;
+
+        //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
+        for (int i = 0; i < tanks_to_loop_through.size(); i++)
+        {
+            Tank& tank = *tanks_to_loop_through.at(i);
+
+            if (rocket.intersects(tank.position, tank.collision_radius))
+            {
+                explosions.push_back(Explosion(&explosion, tank.position));
+
+                if (tank.hit(ROCKET_HIT_VALUE))
+                {
+                    smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                    delete_dead_tank(tank.allignment, i);
+                }
+
+                rocket.active = false;
+                break;
+            }
+        }
+    }
+
 
 }
 

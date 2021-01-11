@@ -25,7 +25,7 @@ vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 20254.3 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 18405.0 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 

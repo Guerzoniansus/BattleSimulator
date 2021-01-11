@@ -127,11 +127,20 @@ Tank& Game::find_closest_enemy(Tank& current_tank)
 
     float closest_distance = numeric_limits<float>::infinity();
     int closest_index = 0;
+
+    // Margin outside of screen
+    int margin = 50;
     
     for (int i = 0; i < enemies.size(); i++)
     {
         Tank& enemy = *enemies.at(i);
-        //if (is_outside_of_screen(enemy.get_position().x, enemy.get_position().y)) continue;
+
+        // Don't scan tanks outside of the screen which has huge performance impact 
+        if (enemy.get_position().x < 0 - margin || enemy.get_position().x > SCRWIDTH + margin
+            || enemy.get_position().y < 0 - margin || enemy.get_position().y > SCRHEIGHT + margin)
+        {
+            continue;
+        }
 
         float sqr_dist = fabsf((enemy.get_position() - current_tank.get_position()).sqr_length());
         if (sqr_dist < closest_distance)

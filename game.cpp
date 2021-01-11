@@ -419,7 +419,8 @@ void Game::update_rockets()
         }
     }
 
-
+    //Remove exploded rockets with remove erase idiom
+    rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
 }
 
 void Game::draw()

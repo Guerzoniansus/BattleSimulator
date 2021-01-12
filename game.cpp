@@ -457,36 +457,39 @@ void Game::draw()
     //Draw sorted health bars
     for (int t = 0; t < 2; t++)
     {
-        const int NUM_TANKS = ((t < 1) ? NUM_TANKS_BLUE : NUM_TANKS_RED);
+        const int NUM_TANKS = ((t < 1) ? alive_blue_tanks.size() : alive_red_tanks.size());
 
-        const int begin = ((t < 1) ? 0 : NUM_TANKS_BLUE);
+        const int begin = ((t < 1) ?  0 :  0);
 
-        std::vector<const Tank*> sorted_tanks(NUM_TANKS);
+        std::vector<Tank*> sorted_tanks;
 
-        if (t < 1) {
-            for (int i = 0; i < NUM_TANKS; i++)
-            {
-                sorted_tanks.at(i) = &tanks.at(i);
-            }
-            std::atomic<int> threads(amount_of_threads);
-            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
+        if (t < 1) 
+        {
+         sorted_tanks = alive_blue_tanks;
+         std::atomic<int> threads(amount_of_threads);
+         merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
         }
-        else {
-            for (int i = 0; i < NUM_TANKS; i++)
-            {
-                int save_value = i + begin;
-                sorted_tanks.at(i) = &tanks.at(save_value);
-            }
-            std::atomic<int> threads = amount_of_threads;
-            merge_sort(sorted_tanks, begin - NUM_TANKS, begin - 1, threads);
+        else 
+        {         
+         sorted_tanks = alive_red_tanks;
+         std::atomic<int> threads = amount_of_threads;
+         merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);          
         }
+
+        int health_bar_start_x = 0;
+        int health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
+        int health_bar_end_x = (t < 1) ? health_bar_start_x + (NUM_TANKS_BLUE - alive_blue_tanks.size()) : health_bar_start_x + (NUM_TANKS_RED - alive_red_tanks.size());
+        int health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;
+
+        screen->bar(health_bar_start_x, health_bar_start_y, health_bar_end_x, health_bar_end_y, REDMASK);
+
         for (int i = 0; i < NUM_TANKS; i++)
         {
-            int health_bar_start_x = i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X;
-            int health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
-            int health_bar_end_x = health_bar_start_x + HEALTH_BAR_WIDTH;
-            int health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;
-
+           int health_bar_start_x = health_bar_end_x + (i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X);
+           int health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
+           int health_bar_end_x = health_bar_start_x + HEALTH_BAR_WIDTH;
+           int health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;
+            
             screen->bar(health_bar_start_x, health_bar_start_y, health_bar_end_x, health_bar_end_y, REDMASK);
             screen->bar(health_bar_start_x, health_bar_start_y + (int)((double)HEALTH_BAR_HEIGHT * (1 - ((double)sorted_tanks.at(i)->health / (double)TANK_MAX_HEALTH))), health_bar_end_x, health_bar_end_y, GREENMASK);
         }
@@ -494,12 +497,12 @@ void Game::draw()
 }
 
 // merges two subvectors of vector.
-void Tmpl8::Game::merge(std::vector<const Tank*>& sorted_tanks, int start, int middle, int end) {
+void Tmpl8::Game::merge(std::vector<Tank*>& sorted_tanks, int start, int middle, int end) {
 
     int save_value = ((middle - start) + 1);
     int save_value2 = (end - middle);
-    std::vector<const Tank*> left_vector(save_value);
-    std::vector<const Tank*> right_vector(save_value2);
+    std::vector<Tank*> left_vector(save_value);
+    std::vector<Tank*> right_vector(save_value2);
 
     // fill in left vector
     for (int i = 0; i < left_vector.size(); ++i) {
@@ -541,7 +544,7 @@ void Tmpl8::Game::merge(std::vector<const Tank*>& sorted_tanks, int start, int m
 }
 
 // main function that sorts array[start..end] using merge()
-void Tmpl8::Game::merge_sort(std::vector<const Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
+void Tmpl8::Game::merge_sort(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
 
     if (start < end) {
         // find the middle point

@@ -50,6 +50,7 @@ class Game
     }
 
     void Tmpl8::Game::delete_dead_tank(allignments alignment, int index);
+    void Tmpl8::Game::delete_dead_tank(Tank* tank);
 
   private:
     Surface* screen;

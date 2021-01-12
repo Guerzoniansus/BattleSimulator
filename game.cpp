@@ -23,9 +23,10 @@ void remove_tank_from_grid(Tank& tank);
 void add_tank_to_grid(Tank& tank);
 vec2 get_tank_grid_coordinate(float x, float y);
 bool is_outside_of_screen(float x, float y);
+bool is_negatively_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 17995.1 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 12675.5 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -56,8 +57,8 @@ const static float rocket_radius = 10.f;
 
 const static int grid_col_width = 14; // Tank width, using tank_size.x would give an error on the grid array so had to use ugly number
 const static int grid_col_height = 18; // Tank height, using tank_size.y would give an error on the grid array so had to use ugly number
-const static int grid_col_amount = (SCRWIDTH / grid_col_width) + 1;
-const static int grid_row_amount = (SCRHEIGHT / grid_col_height) + 1;
+const static int grid_col_amount = 100;
+const static int grid_row_amount = 100;
 
 // Grid of tanks used for collisions
 vector<Tank*> grid[grid_col_amount][grid_row_amount];
@@ -239,6 +240,10 @@ void Game::update_tanks() {
                 int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
 
                 Tank& tank = *tanks_to_loop_through.at(i - offset);
+
+                // Dont check for collision outside of screen
+                if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
+                    continue;
                 
                 std::unique_lock<std::mutex> lock(myMutex);
                 vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
@@ -396,21 +401,32 @@ void Game::update_rockets()
     {
         rocket.tick();
 
-        vector<Tank*>& tanks_to_loop_through = rocket.allignment == BLUE ? alive_red_tanks : alive_blue_tanks;
+        vector<Tank*> tanks_to_loop_through; 
+        
+        // Grid doesn't support negative coordinates
+        if (is_negatively_outside_of_screen(rocket.position.x, rocket.position.y))
+        {
+            rocket.allignment == BLUE ? tanks_to_loop_through = alive_red_tanks : tanks_to_loop_through = alive_blue_tanks;
+        }
+            
+        else 
+        {
+            tanks_to_loop_through = get_tank_collision_candidates(rocket.position.x, rocket.position.y);
+        }
 
         //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
         for (int i = 0; i < tanks_to_loop_through.size(); i++)
         {
             Tank& tank = *tanks_to_loop_through.at(i);
 
-            if (rocket.intersects(tank.position, tank.collision_radius))
+            if (tank.active && (tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
             {
                 explosions.push_back(Explosion(&explosion, tank.position));
 
                 if (tank.hit(ROCKET_HIT_VALUE))
                 {
                     smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                    delete_dead_tank(tank.allignment, i);
+                    delete_dead_tank(&tank);
                 }
 
                 rocket.active = false;
@@ -653,7 +669,7 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
     vector<Tank*> candidate_tanks;
 
     // Dont count tanks that are outside the screen
-    if (is_outside_of_screen(x, y))
+    if (is_negatively_outside_of_screen(x, y))
         return candidate_tanks;
 
     vec2 coord = get_tank_grid_coordinate(x, y);
@@ -694,7 +710,7 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
 void remove_tank_from_grid(Tank& tank) 
 {
     // Dont count tanks that are outside the screen 
-    if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
+    if (is_negatively_outside_of_screen(tank.get_position().x, tank.get_position().y))
         return;
 
     vec2 coord = get_tank_grid_coordinate(tank.get_position().x, tank.get_position().y);
@@ -713,7 +729,7 @@ void remove_tank_from_grid(Tank& tank)
 void add_tank_to_grid(Tank& tank) 
 {
     // Dont count tanks that are outside the screen
-    if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
+    if (is_negatively_outside_of_screen(tank.get_position().x, tank.get_position().y))
         return;
 
     vec2 coord = get_tank_grid_coordinate(tank.get_position().x, tank.get_position().y);
@@ -745,8 +761,25 @@ bool is_outside_of_screen(float x, float y)
 }
 
 // -----------------------------------------------------------
+// Check if a coordinate is negative
+// -----------------------------------------------------------
+bool is_negatively_outside_of_screen(float x, float y)
+{
+    return x < 0 || y < 0;
+}
+// -----------------------------------------------------------
 // Remove a dead tank from the list of alive tanks 
+// i is the index in the list of alive tanks it belongs to
 // -----------------------------------------------------------
 void Tmpl8::Game::delete_dead_tank(allignments alignment, int index) {
     alignment == BLUE ? alive_blue_tanks.erase(alive_blue_tanks.begin() + index) : alive_red_tanks.erase(alive_red_tanks.begin() + index);
+}
+
+// -----------------------------------------------------------
+// Remove a dead tank from the list of alive tanks 
+// -----------------------------------------------------------
+void Tmpl8::Game::delete_dead_tank(Tank* tank) {
+    vector<Tank*>& vector_to_use = (*tank).allignment == BLUE ? alive_blue_tanks : alive_red_tanks;
+
+    vector_to_use.erase(remove(vector_to_use.begin(), vector_to_use.end(), tank), vector_to_use.end());
 }

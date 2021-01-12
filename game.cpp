@@ -165,11 +165,7 @@ void Game::update(float deltaTime)
 {
     update_tanks();
 
-    //Update smoke plumes
-    for (Smoke& smoke : smokes)
-    {
-        smoke.tick();
-    }
+    update_smokes();
 
     //Update rockets
     update_rockets();
@@ -209,7 +205,46 @@ void Game::update(float deltaTime)
     explosions.erase(std::remove_if(explosions.begin(), explosions.end(), [](const Explosion& explosion) { return explosion.done(); }), explosions.end());
 }
 
-void Game::update_tanks() {
+void Game::update_smokes()
+{
+    int upper_limit = smokes.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+
+    // One extra loop for first N amount of threads
+    if (current_remaining > 0)
+    {
+        end++;
+        current_remaining--;
+    }
+
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        future<void> fut = thread_pool.enqueue([&, start, end]
+            {
+                smokes.at(i).tick();
+            });
+
+        futures.push_back(&fut);
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+
+}
+
+
+void Game::update_tanks() 
+{
     
     int upper_limit = tanks.size();
     int block_size = upper_limit / amount_of_threads;
@@ -225,7 +260,8 @@ void Game::update_tanks() {
     for (int i = 0; i < amount_of_threads; i++)
     {
         // One extra loop for first N amount of threads
-        if (current_remaining > 0) {
+        if (current_remaining > 0) 
+        {
             end++;
             current_remaining--;
         }
@@ -352,12 +388,14 @@ void Game::update_tanks() {
     for (int i = 0; i < amount_of_threads; i++)
     {
         // One extra loop for first N amount of threads
-        if (current_remaining > 0) {
+        if (current_remaining > 0) 
+        {
             end++;
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end] {
+        future<void> fut = thread_pool.enqueue([&, start, end] 
+            {
 
             for (int i = start; i < end; i++)
             {
@@ -413,7 +451,8 @@ void Game::update_rockets()
     for (int i = 0; i < amount_of_threads; i++)
     {
         // One extra loop for first N amount of threads
-        if (current_remaining > 0) {
+        if (current_remaining > 0) 
+        {
             end++;
             current_remaining--;
         }

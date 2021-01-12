@@ -463,6 +463,7 @@ void Game::draw()
          std::atomic<int> threads(amount_of_threads);
          merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
         }
+
         else 
         {         
          sorted_tanks = alive_red_tanks;
@@ -479,10 +480,10 @@ void Game::draw()
 
         for (int i = 0; i < NUM_TANKS; i++)
         {
-           int health_bar_start_x = health_bar_end_x + (i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X);
-           int health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
-           int health_bar_end_x = health_bar_start_x + HEALTH_BAR_WIDTH;
-           int health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;
+           health_bar_start_x = health_bar_end_x + (i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X);
+           health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
+           health_bar_end_x = health_bar_start_x + HEALTH_BAR_WIDTH;
+           health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;
             
             screen->bar(health_bar_start_x, health_bar_start_y, health_bar_end_x, health_bar_end_y, REDMASK);
             screen->bar(health_bar_start_x, health_bar_start_y + (int)((double)HEALTH_BAR_HEIGHT * (1 - ((double)sorted_tanks.at(i)->health / (double)TANK_MAX_HEALTH))), health_bar_end_x, health_bar_end_y, GREENMASK);

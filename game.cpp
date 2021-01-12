@@ -26,7 +26,7 @@ bool is_outside_of_screen(float x, float y);
 bool is_negatively_outside_of_screen(float x, float y);
 
 //Global performance timer
-#define REF_PERFORMANCE 12675.5 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 14208.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -273,6 +273,8 @@ void Game::update_tanks() {
 
         }); 
 
+        futures.push_back(&fut);
+
         start = end;
 
         end += block_size;
@@ -328,6 +330,8 @@ void Game::update_tanks() {
 
             });
 
+        futures.push_back(&fut);
+
         start = end;
 
         end += block_size;
@@ -338,9 +342,6 @@ void Game::update_tanks() {
     {
         (*fut).wait();
     }
-
-
-    futures.clear();
 
     start = 0;
     end = start + block_size;
@@ -382,6 +383,8 @@ void Game::update_tanks() {
 
             });
 
+        futures.push_back(&fut);
+
         start = end;
 
         end += block_size;
@@ -397,42 +400,79 @@ void Game::update_tanks() {
 
 void Game::update_rockets() 
 {
-    for (Rocket& rocket : rockets)
+
+    int upper_limit = rockets.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+
+    for (int i = 0; i < amount_of_threads; i++)
     {
-        rocket.tick();
-
-        vector<Tank*> tanks_to_loop_through; 
-        
-        // Grid doesn't support negative coordinates
-        if (is_negatively_outside_of_screen(rocket.position.x, rocket.position.y))
-        {
-            rocket.allignment == BLUE ? tanks_to_loop_through = alive_red_tanks : tanks_to_loop_through = alive_blue_tanks;
-        }
-            
-        else 
-        {
-            tanks_to_loop_through = get_tank_collision_candidates(rocket.position.x, rocket.position.y);
+        // One extra loop for first N amount of threads
+        if (current_remaining > 0) {
+            end++;
+            current_remaining--;
         }
 
-        //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
-        for (int i = 0; i < tanks_to_loop_through.size(); i++)
-        {
-            Tank& tank = *tanks_to_loop_through.at(i);
-
-            if (tank.active && (tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
+        future<void> fut = thread_pool.enqueue([&, start, end]
             {
-                explosions.push_back(Explosion(&explosion, tank.position));
-
-                if (tank.hit(ROCKET_HIT_VALUE))
+                for (int i = start; i < end; i++)
                 {
-                    smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
-                    delete_dead_tank(&tank);
-                }
+                    Rocket& rocket = rockets.at(i);
 
-                rocket.active = false;
-                break;
-            }
-        }
+                    rocket.tick();
+
+                    vector<Tank*> tanks_to_loop_through;
+
+                    // Grid doesn't support negative coordinates
+                    if (is_negatively_outside_of_screen(rocket.position.x, rocket.position.y))
+                    {
+                        rocket.allignment == BLUE ? tanks_to_loop_through = alive_red_tanks : tanks_to_loop_through = alive_blue_tanks;
+                    }
+
+                    else
+                    {
+                        tanks_to_loop_through = get_tank_collision_candidates(rocket.position.x, rocket.position.y);
+                    }
+
+                    //Check if rocket collides with enemy tank, spawn explosion and if tank is destroyed spawn a smoke plume
+                    for (int i = 0; i < tanks_to_loop_through.size(); i++)
+                    {
+                        Tank& tank = *tanks_to_loop_through.at(i);
+
+                        if (tank.active && (tank.allignment != rocket.allignment) && rocket.intersects(tank.position, tank.collision_radius))
+                        {
+                            std::unique_lock<std::mutex> lock(myMutex);
+                            explosions.push_back(Explosion(&explosion, tank.position));
+
+                            if (tank.hit(ROCKET_HIT_VALUE))
+                            {
+                                smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                                delete_dead_tank(&tank);
+                            }
+
+                            lock.unlock();
+
+                            rocket.active = false;
+                            break;
+                        }
+                    }
+                }
+            });
+
+        futures.push_back(&fut);
+
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        fut->wait();
     }
 
     //Remove exploded rockets with remove erase idiom

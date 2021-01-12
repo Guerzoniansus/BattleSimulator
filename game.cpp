@@ -476,11 +476,13 @@ void Game::draw()
         int health_bar_end_x = (t < 1) ? health_bar_start_x + (NUM_TANKS_BLUE - alive_blue_tanks.size()) : health_bar_start_x + (NUM_TANKS_RED - alive_red_tanks.size());
         int health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;
 
+        int sorted_health_bars_start_x = health_bar_end_x;
+
         screen->bar(health_bar_start_x, health_bar_start_y, health_bar_end_x, health_bar_end_y, REDMASK);
 
         for (int i = 0; i < NUM_TANKS; i++)
         {
-            health_bar_start_x = health_bar_end_x + (i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X);
+            health_bar_start_x = sorted_health_bars_start_x + (i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X);
             health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
             health_bar_end_x = health_bar_start_x + HEALTH_BAR_WIDTH;
             health_bar_end_y = (t < 1) ? HEALTH_BAR_HEIGHT : SCRHEIGHT - 1;

@@ -526,36 +526,15 @@ void Game::draw()
     //Draw background
     background.draw(screen, 0, 0);
 
-    //Draw sprites
-    for (int i = 0; i < NUM_TANKS_BLUE + NUM_TANKS_RED; i++)
-    {
-        tanks.at(i).draw(screen);
+    draw_tanks();
 
-        vec2 tank_pos = tanks.at(i).get_position();
-        // tread marks
-        if ((tank_pos.x >= 0) && (tank_pos.x < SCRWIDTH) && (tank_pos.y >= 0) && (tank_pos.y < SCRHEIGHT))
-            background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH] = sub_blend(background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH], 0x808080);
-    }
+    draw_rockets();
 
-    for (Rocket& rocket : rockets)
-    {
-        rocket.draw(screen);
-    }
+    draw_smokes();
 
-    for (Smoke& smoke : smokes)
-    {
-        smoke.draw(screen);
-    }
+    draw_particle_beams();
 
-    for (Particle_beam& particle_beam : particle_beams)
-    {
-        particle_beam.draw(screen);
-    }
-
-    for (Explosion& explosion : explosions)
-    {
-        explosion.draw(screen);
-    }
+    draw_explosions();
 
     //Draw sorted health bars
     for (int t = 0; t < 2; t++)
@@ -600,6 +579,210 @@ void Game::draw()
             screen->bar(health_bar_start_x, health_bar_start_y + (int)((double)HEALTH_BAR_HEIGHT * (1 - ((double)sorted_tanks.at(i)->health / (double)TANK_MAX_HEALTH))), health_bar_end_x, health_bar_end_y, GREENMASK);
         }
     }
+}
+
+void Game::draw_tanks()
+{
+    int upper_limit = tanks.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+
+    // One extra loop for first N amount of threads
+    if (current_remaining > 0)
+    {
+        end++;
+        current_remaining--;
+    }
+
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        future<void> fut = thread_pool.enqueue([&, start, end]
+            {
+                for (int i = start; i < end; i++)
+                {
+                    tanks.at(i).draw(screen);
+                    vec2 tank_pos = tanks.at(i).get_position();
+                    // tread marks
+                    if ((tank_pos.x >= 0) && (tank_pos.x < SCRWIDTH) && (tank_pos.y >= 0) && (tank_pos.y < SCRHEIGHT))
+                        background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH] = sub_blend(background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH], 0x808080);
+                }
+            });
+
+        futures.push_back(&fut);
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+}
+
+void Game::draw_rockets()
+{
+    int upper_limit = rockets.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+
+    // One extra loop for first N amount of threads
+    if (current_remaining > 0)
+    {
+        end++;
+        current_remaining--;
+    }
+
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        future<void> fut = thread_pool.enqueue([&, start, end]
+            {
+                for (int i = start; i < end; i++)
+                {
+                    rockets.at(i).draw(screen);
+                }
+            });
+
+        futures.push_back(&fut);
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+
+}
+
+void Game::draw_smokes()
+{
+    int upper_limit = smokes.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+
+    if (upper_limit == 0) {
+        return;
+    }
+    // One extra loop for first N amount of threads
+    if (current_remaining > 0)
+    {
+        end++;
+        current_remaining--;
+    }
+
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        future<void> fut = thread_pool.enqueue([&, start, end]
+            {
+                for (int i = start; i < end; i++)
+                {
+                    smokes.at(i).draw(screen);
+                }
+            });
+
+        futures.push_back(&fut);
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+
+}
+
+void Game::draw_particle_beams()
+{
+    int upper_limit = particle_beams.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        // One extra loop for first N amount of threads
+        if (current_remaining > 0)
+        {
+            end++;
+            current_remaining--;
+        }
+        future<void> fut = thread_pool.enqueue([&, start, end]
+            {
+                for (int i = start; i < end; i++)
+                {
+                    particle_beams.at(i).draw(screen);
+                }
+            });
+
+        futures.push_back(&fut);
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+
+}
+
+void Game::draw_explosions()
+{
+    int upper_limit = explosions.size();
+    int block_size = upper_limit / amount_of_threads;
+    int start = 0;
+    int end = start + block_size;
+    int remaining = upper_limit % amount_of_threads;
+    int current_remaining = remaining;
+
+    vector<future<void>*> futures;
+
+    // One extra loop for first N amount of threads
+    if (current_remaining > 0)
+    {
+        end++;
+        current_remaining--;
+    }
+
+    for (int i = 0; i < amount_of_threads; i++)
+    {
+        future<void> fut = thread_pool.enqueue([&, start, end]
+            {
+                for (int i = start; i < end; i++)
+                {
+                    explosions.at(i).draw(screen);
+                }
+            });
+
+        futures.push_back(&fut);
+        start = end;
+        end += block_size;
+    }
+
+    for (future<void>* fut : futures)
+    {
+        (*fut).wait();
+    }
+
 }
 
 // merges two subvectors of vector.

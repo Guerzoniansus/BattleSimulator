@@ -25,7 +25,6 @@ class Game
     void draw_tanks();
     void draw_rockets();
     void draw_smokes();
-    void draw_particle_beams();
     void draw_explosions();
 
     void test();

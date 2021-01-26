@@ -532,7 +532,10 @@ void Game::draw()
 
     draw_smokes();
 
-    draw_particle_beams();
+    //draw particle beams
+    for (Particle_beam& particle_beams : particle_beams) {
+        particle_beams.draw(screen);
+    }
 
     draw_explosions();
 
@@ -692,44 +695,6 @@ void Game::draw_smokes()
                 for (int i = start; i < end; i++)
                 {
                     smokes.at(i).draw(screen);
-                }
-            });
-
-        futures.push_back(&fut);
-        start = end;
-        end += block_size;
-    }
-
-    for (future<void>* fut : futures)
-    {
-        (*fut).wait();
-    }
-
-}
-
-void Game::draw_particle_beams()
-{
-    int upper_limit = particle_beams.size();
-    int block_size = upper_limit / amount_of_threads;
-    int start = 0;
-    int end = start + block_size;
-    int remaining = upper_limit % amount_of_threads;
-    int current_remaining = remaining;
-
-    vector<future<void>*> futures;
-    for (int i = 0; i < amount_of_threads; i++)
-    {
-        // One extra loop for first N amount of threads
-        if (current_remaining > 0)
-        {
-            end++;
-            current_remaining--;
-        }
-        future<void> fut = thread_pool.enqueue([&, start, end]
-            {
-                for (int i = start; i < end; i++)
-                {
-                    particle_beams.at(i).draw(screen);
                 }
             });
 

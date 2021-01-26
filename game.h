@@ -27,8 +27,12 @@ class Game
     void draw_smokes();
     void draw_explosions();
 
-    void test();
-
+    vector<Tank*> get_tank_collision_candidates(float x, float y);
+    void remove_tank_from_grid(Tank& tank);
+    void add_tank_to_grid(Tank& tank);
+    vec2 get_tank_grid_coordinate(float x, float y);
+    bool is_outside_of_screen(float x, float y);
+    bool is_negatively_outside_of_screen(float x, float y);
     
     void measure_performance();
 

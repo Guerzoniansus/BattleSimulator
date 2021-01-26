@@ -17,16 +17,8 @@
 
 #define MAX_FRAMES 2000
 
-// Function declarations
-vector<Tank*> get_tank_collision_candidates(float x, float y);
-void remove_tank_from_grid(Tank& tank);
-void add_tank_to_grid(Tank& tank);
-vec2 get_tank_grid_coordinate(float x, float y);
-bool is_outside_of_screen(float x, float y);
-bool is_negatively_outside_of_screen(float x, float y);
-
 //Global performance timer
-#define REF_PERFORMANCE 14208.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
+#define REF_PERFORMANCE 52615.2 //UPDATE THIS WITH YOUR REFERENCE PERFORMANCE (see console after 2k frames)
 static timer perf_timer;
 static float duration;
 
@@ -533,7 +525,8 @@ void Game::draw()
     draw_smokes();
 
     //draw particle beams
-    for (Particle_beam& particle_beams : particle_beams) {
+    for (Particle_beam& particle_beams : particle_beams) 
+    {
         particle_beams.draw(screen);
     }
 
@@ -550,18 +543,19 @@ void Game::draw()
 
         if (t < 1) 
         {
-         sorted_tanks = alive_blue_tanks;
-         std::atomic<int> threads(amount_of_threads);
-         merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
+            sorted_tanks = alive_blue_tanks;
+            std::atomic<int> threads(amount_of_threads);
+            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
         }
 
         else 
         {         
-         sorted_tanks = alive_red_tanks;
-         std::atomic<int> threads = amount_of_threads;
-         merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);          
+            sorted_tanks = alive_red_tanks;
+            std::atomic<int> threads = amount_of_threads;
+            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);          
         }
 
+        // Draw all dead health bars
         int health_bar_start_x = 0;
         int health_bar_start_y = (t < 1) ? 0 : (SCRHEIGHT - HEALTH_BAR_HEIGHT) - 1;
         int health_bar_end_x = (t < 1) ? health_bar_start_x + (NUM_TANKS_BLUE - alive_blue_tanks.size()) : health_bar_start_x + (NUM_TANKS_RED - alive_red_tanks.size());
@@ -571,6 +565,7 @@ void Game::draw()
 
         screen->bar(health_bar_start_x, health_bar_start_y, health_bar_end_x, health_bar_end_y, REDMASK);
 
+        // Draw the alive health bars
         for (int i = 0; i < NUM_TANKS; i++)
         {
             health_bar_start_x = sorted_health_bars_start_x + (i * (HEALTH_BAR_WIDTH + HEALTH_BAR_SPACING) + HEALTH_BARS_OFFSET_X);
@@ -610,7 +605,8 @@ void Game::draw_tanks()
                 {
                     tanks.at(i).draw(screen);
                     vec2 tank_pos = tanks.at(i).get_position();
-                    // tread marks
+
+                    // thread marks
                     if ((tank_pos.x >= 0) && (tank_pos.x < SCRWIDTH) && (tank_pos.y >= 0) && (tank_pos.y < SCRHEIGHT))
                         background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH] = sub_blend(background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH], 0x808080);
                 }
@@ -670,6 +666,11 @@ void Game::draw_rockets()
 void Game::draw_smokes()
 {
     int upper_limit = smokes.size();
+
+    if (upper_limit == 0) {
+        return;
+    }
+
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
     int end = start + block_size;
@@ -678,9 +679,6 @@ void Game::draw_smokes()
 
     vector<future<void>*> futures;
 
-    if (upper_limit == 0) {
-        return;
-    }
     // One extra loop for first N amount of threads
     if (current_remaining > 0)
     {
@@ -751,20 +749,23 @@ void Game::draw_explosions()
 }
 
 // merges two subvectors of vector.
-void Tmpl8::Game::merge(std::vector<Tank*>& sorted_tanks, int start, int middle, int end) {
-
+void Tmpl8::Game::merge(std::vector<Tank*>& sorted_tanks, int start, int middle, int end) 
+{
     int save_value = ((middle - start) + 1);
     int save_value2 = (end - middle);
     std::vector<Tank*> left_vector(save_value);
     std::vector<Tank*> right_vector(save_value2);
 
     // fill in left vector
-    for (int i = 0; i < left_vector.size(); ++i) {
+    for (int i = 0; i < left_vector.size(); ++i) 
+    {
         save_value = start + i;
         left_vector[i] = sorted_tanks[save_value];
     }
+
     // fill in right vector
-    for (int i = 0; i < right_vector.size(); ++i) {
+    for (int i = 0; i < right_vector.size(); ++i) 
+    {
         save_value = (middle + 1 + i);
         right_vector[i] = sorted_tanks[save_value];
     }
@@ -778,37 +779,49 @@ void Tmpl8::Game::merge(std::vector<Tank*>& sorted_tanks, int start, int middle,
     int current_index = start;
 
     // compare each index of the subvector adding the lowest value to the currentIndex
-    while (left_index < left_vector.size() && right_index < right_vector.size()) {
-        if (left_vector[left_index]->health <= right_vector[right_index]->health) {
+    while (left_index < left_vector.size() && right_index < right_vector.size()) 
+    {
+
+        if (left_vector[left_index]->health <= right_vector[right_index]->health) 
+        {
             sorted_tanks[current_index] = left_vector[left_index];
             left_index++;
         }
-        else {
+
+        else 
+        {
             sorted_tanks[current_index] = right_vector[right_index];
             right_index++;
         }
+
         current_index++;
     }
 
     // copy remaining elements of left_vector if any
-    while (left_index < left_vector.size()) sorted_tanks[current_index++] = left_vector[left_index++];
+    while (left_index < left_vector.size()) 
+        sorted_tanks[current_index++] = left_vector[left_index++];
 
     // copy remaining elements of right_vector if any
-    while (right_index < right_vector.size()) sorted_tanks[current_index++] = right_vector[right_index++];
+    while (right_index < right_vector.size()) 
+        sorted_tanks[current_index++] = right_vector[right_index++];
 }
 
 // main function that sorts array[start..end] using merge()
-void Tmpl8::Game::merge_sort(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) {
+void Tmpl8::Game::merge_sort(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) 
+{
 
-    if (start < end) {
+    if (start < end) 
+    {
         // find the middle point
         int middle = (start + end) / 2;
 
-        if (threads >= 1) {
+        if (threads >= 1) 
+        {
             threads --;
 
-            future<void> future_left = thread_pool.enqueue([&] {
-                merge_sort(sorted_tanks, start, middle, threads);
+            future<void> future_left = thread_pool.enqueue([&] 
+                {
+                    merge_sort(sorted_tanks, start, middle, threads);
                 });
 
             merge_sort(sorted_tanks, middle + 1, end, threads);
@@ -820,7 +833,8 @@ void Tmpl8::Game::merge_sort(std::vector<Tank*>& sorted_tanks, int start, int en
             merge(sorted_tanks, start, middle, end);
         }
 
-        else {
+        else 
+        {
             merge_sort(sorted_tanks, start, middle, threads);
             merge_sort(sorted_tanks, middle + 1, end, threads);
 
@@ -891,7 +905,7 @@ void Game::tick(float deltaTime)
 // specific coordinate along with the square itself, 
 // which is enough for tank and rocket collision range. 
 // -----------------------------------------------------------
-vector<Tank*> get_tank_collision_candidates(float x, float y) 
+vector<Tank*> Game::get_tank_collision_candidates(float x, float y)
 {
     vector<Tank*> candidate_tanks;
 
@@ -934,7 +948,7 @@ vector<Tank*> get_tank_collision_candidates(float x, float y)
 // -----------------------------------------------------------
 // Remove a tank from the grid 
 // -----------------------------------------------------------
-void remove_tank_from_grid(Tank& tank) 
+void Game::remove_tank_from_grid(Tank& tank)
 {
     // Dont count tanks that are outside the screen 
     if (is_negatively_outside_of_screen(tank.get_position().x, tank.get_position().y))
@@ -953,7 +967,7 @@ void remove_tank_from_grid(Tank& tank)
 // -----------------------------------------------------------
 // Add a tank to the grid 
 // -----------------------------------------------------------
-void add_tank_to_grid(Tank& tank) 
+void Game::add_tank_to_grid(Tank& tank)
 {
     // Dont count tanks that are outside the screen
     if (is_negatively_outside_of_screen(tank.get_position().x, tank.get_position().y))
@@ -970,7 +984,7 @@ void add_tank_to_grid(Tank& tank)
 // Returns a vec2 with the col (x) and row (y) of this tank in the grid
 // Warning: it can return out of bounds values if the tank is outside the screen
 // -----------------------------------------------------------
-vec2 get_tank_grid_coordinate(float x, float y) 
+vec2 Game::get_tank_grid_coordinate(float x, float y)
 {
     int col = x / grid_col_width;
     int row = y / grid_col_height;
@@ -982,7 +996,7 @@ vec2 get_tank_grid_coordinate(float x, float y)
 // -----------------------------------------------------------
 // Check if a coordinate is outside the screen 
 // -----------------------------------------------------------
-bool is_outside_of_screen(float x, float y)
+bool Game::is_outside_of_screen(float x, float y)
 {
     return x < 0 || y < 0 || x > SCRWIDTH || y > SCRHEIGHT;
 }
@@ -990,7 +1004,7 @@ bool is_outside_of_screen(float x, float y)
 // -----------------------------------------------------------
 // Check if a coordinate is negative
 // -----------------------------------------------------------
-bool is_negatively_outside_of_screen(float x, float y)
+bool Game::is_negatively_outside_of_screen(float x, float y)
 {
     return x < 0 || y < 0;
 }
@@ -998,14 +1012,16 @@ bool is_negatively_outside_of_screen(float x, float y)
 // Remove a dead tank from the list of alive tanks 
 // i is the index in the list of alive tanks it belongs to
 // -----------------------------------------------------------
-void Tmpl8::Game::delete_dead_tank(allignments alignment, int index) {
+void Tmpl8::Game::delete_dead_tank(allignments alignment, int index) 
+{
     alignment == BLUE ? alive_blue_tanks.erase(alive_blue_tanks.begin() + index) : alive_red_tanks.erase(alive_red_tanks.begin() + index);
 }
 
 // -----------------------------------------------------------
 // Remove a dead tank from the list of alive tanks 
 // -----------------------------------------------------------
-void Tmpl8::Game::delete_dead_tank(Tank* tank) {
+void Tmpl8::Game::delete_dead_tank(Tank* tank) 
+{
     vector<Tank*>& vector_to_use = (*tank).allignment == BLUE ? alive_blue_tanks : alive_red_tanks;
 
     vector_to_use.erase(remove(vector_to_use.begin(), vector_to_use.end(), tank), vector_to_use.end());

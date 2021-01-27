@@ -62,11 +62,11 @@ class Game
   private:
     Surface* screen;
 
-    vector<Tank> tanks;
+    vector<Tank*> tanks;
     vector<Tank*> alive_blue_tanks;
     vector<Tank*> alive_red_tanks;
-    vector<Rocket> rockets;
-    vector<Smoke> smokes;
+    vector<Rocket*> rockets;
+    vector<Smoke*> smokes;
     vector<Explosion> explosions;
     vector<Particle_beam> particle_beams;
 

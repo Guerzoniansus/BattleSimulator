@@ -84,18 +84,18 @@ void Game::init()
     //Spawn blue tanks
     for (int i = 0; i < NUM_TANKS_BLUE; i++)
     {
-        Tank tank(start_blue_x + ((i % max_rows) * spacing), start_blue_y + ((i / max_rows) * spacing), BLUE, &tank_blue, &smoke, 1200, 600, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
+        Tank* tank = new Tank(start_blue_x + ((i % max_rows) * spacing), start_blue_y + ((i / max_rows) * spacing), BLUE, &tank_blue, &smoke, 1200, 600, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
         tanks.push_back(tank);
-        alive_blue_tanks.push_back(&tanks.at(i));
-        add_tank_to_grid(tank);
+        alive_blue_tanks.push_back(tanks.at(i));
+        add_tank_to_grid(*tank);
     }
     //Spawn red tanks
     for (int i = 0; i < NUM_TANKS_RED; i++)
     {
-        Tank tank(start_red_x + ((i % max_rows) * spacing), start_red_y + ((i / max_rows) * spacing), RED, &tank_red, &smoke, 80, 80, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
+        Tank* tank = new Tank(start_red_x + ((i % max_rows) * spacing), start_red_y + ((i / max_rows) * spacing), RED, &tank_red, &smoke, 80, 80, tank_radius, TANK_MAX_HEALTH, TANK_MAX_SPEED);
         tanks.push_back(tank);
-        alive_red_tanks.push_back(&tanks.at(i + NUM_TANKS_BLUE));
-        add_tank_to_grid(tank);
+        alive_red_tanks.push_back(tanks.at(i + NUM_TANKS_BLUE));
+        add_tank_to_grid(*tank);
     }
 
     particle_beams.push_back(Particle_beam(vec2(SCRWIDTH / 2, SCRHEIGHT / 2), vec2(100, 50), &particle_beam_sprite, PARTICLE_BEAM_HIT_VALUE));
@@ -180,7 +180,7 @@ void Game::update(float deltaTime)
                 {
                     if (tank.hit(particle_beam.damage))
                     {
-                        smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                        smokes.push_back(new Smoke(smoke, tank.position - vec2(0, 48)));
                         delete_dead_tank(tank.allignment, i);
                     }
                 }
@@ -219,7 +219,7 @@ void Game::update_smokes()
     {
         futures.push_back(thread_pool.enqueue([&, start, end]
             {
-                smokes.at(i).tick();
+                (*smokes.at(i)).tick();
             }));
 
         start = end;
@@ -399,7 +399,7 @@ void Game::update_tanks()
 
                         Tank& target = find_closest_enemy(tank);
 
-                        rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
+                        rockets.push_back(new Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
 
                         lock.unlock();
 
@@ -448,7 +448,7 @@ void Game::update_rockets()
             {
                 for (int i = start; i < end; i++)
                 {
-                    Rocket& rocket = rockets.at(i);
+                    Rocket& rocket = *rockets.at(i);
 
                     rocket.tick();
 
@@ -477,7 +477,7 @@ void Game::update_rockets()
 
                             if (tank.hit(ROCKET_HIT_VALUE))
                             {
-                                smokes.push_back(Smoke(smoke, tank.position - vec2(0, 48)));
+                                smokes.push_back(new Smoke(smoke, tank.position - vec2(0, 48)));
                                 delete_dead_tank(&tank);
                             }
 
@@ -500,7 +500,7 @@ void Game::update_rockets()
     }
 
     //Remove exploded rockets with remove erase idiom
-    rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket& rocket) { return !rocket.active; }), rockets.end());
+    rockets.erase(std::remove_if(rockets.begin(), rockets.end(), [](const Rocket* rocket) { return !(*rocket).active; }), rockets.end());
 }
 
 void Game::draw()
@@ -532,17 +532,15 @@ void Game::draw()
 
         const int begin = 0;
 
-        std::vector<Tank*> sorted_tanks;
+        std::vector<Tank*>& sorted_tanks = (t < 1) ? alive_blue_tanks : alive_red_tanks;
 
         if (t < 1) 
         {
-            sorted_tanks = alive_blue_tanks;
             Merge_Functions::sort_tanks_by_health(sorted_tanks, begin, begin + NUM_TANKS - 1, atomic<int>(amount_of_threads), thread_pool);
         }
 
         else 
         {         
-            sorted_tanks = alive_red_tanks;
             Merge_Functions::sort_tanks_by_health(sorted_tanks, begin, begin + NUM_TANKS - 1, atomic<int>(amount_of_threads), thread_pool);
         }
 
@@ -573,16 +571,10 @@ void Game::draw()
 void Game::draw_tanks()
 {
     // Sort tanks by x
-    std::vector<Tank*> sorted_tanks;
-    sorted_tanks.reserve(tanks.size());
-
-    for (Tank& tank : tanks) 
-        sorted_tanks.push_back(&tank);
-
-    Merge_Functions::sort_tanks_by_x(sorted_tanks, 0, sorted_tanks.size() - 1, atomic<int>(amount_of_threads), thread_pool);
+    Merge_Functions::sort_tanks_by_x(tanks, 0, tanks.size() - 1, atomic<int>(amount_of_threads), thread_pool);
 
     // Divide over threads
-    int upper_limit = sorted_tanks.size();
+    int upper_limit = tanks.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
     int end = start + block_size;
@@ -604,7 +596,7 @@ void Game::draw_tanks()
             {
                 for (int i = start; i < end; i++)
                 {
-                    Tank& tank = *sorted_tanks.at(i);
+                    Tank& tank = *tanks.at(i);
 
                     tank.draw(screen);
                     vec2 tank_pos = tank.get_position();
@@ -630,17 +622,10 @@ void Game::draw_rockets()
     if (rockets.size() == 0)
         return;
 
-    // Sort rockets by x
-    std::vector<Rocket*> sorted_rockets;
-    sorted_rockets.reserve(rockets.size());
-
-    for (Rocket& rocket : rockets)
-        sorted_rockets.push_back(&rocket);
-
-    Merge_Functions::sort_rockets_by_x(sorted_rockets, 0, sorted_rockets.size() - 1, atomic<int>(amount_of_threads), thread_pool);
+    Merge_Functions::sort_rockets_by_x(rockets, 0, rockets.size() - 1, atomic<int>(amount_of_threads), thread_pool);
 
     // Divide over threads
-    int upper_limit = sorted_rockets.size();
+    int upper_limit = rockets.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
     int end = start + block_size;
@@ -662,7 +647,7 @@ void Game::draw_rockets()
             {
                 for (int i = start; i < end; i++)
                 {
-                    (*sorted_rockets.at(i)).draw(screen);
+                    (*rockets.at(i)).draw(screen);
                 }
             }));
 
@@ -682,14 +667,7 @@ void Game::draw_smokes()
     if (smokes.size() == 0)
         return;
 
-    // Sort rockets by x
-    std::vector<Smoke*> sorted_smokes;
-    sorted_smokes.reserve(smokes.size());
-
-    for (Smoke& smoke : smokes)
-        sorted_smokes.push_back(&smoke);
-
-    Merge_Functions::sort_smokes_by_y(sorted_smokes, 0, sorted_smokes.size() - 1, atomic<int>(amount_of_threads), thread_pool);
+    Merge_Functions::sort_smokes_by_y(smokes, 0, smokes.size() - 1, atomic<int>(amount_of_threads), thread_pool);
 
     // Divide over threads
     int upper_limit = smokes.size();
@@ -714,7 +692,7 @@ void Game::draw_smokes()
             {
                 for (int i = start; i < end; i++)
                 {
-                    (*sorted_smokes.at(i)).draw(screen);
+                    (*smokes.at(i)).draw(screen);
                 }
             }));
 

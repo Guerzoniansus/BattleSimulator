@@ -206,7 +206,7 @@ void Game::update_smokes()
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
+    vector<future<void>> futures;
 
     // One extra loop for first N amount of threads
     if (current_remaining > 0)
@@ -217,19 +217,18 @@ void Game::update_smokes()
 
     for (int i = 0; i < amount_of_threads; i++)
     {
-        future<void> fut = thread_pool.enqueue([&, start, end]
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 smokes.at(i).tick();
-            });
+            }));
 
-        futures.push_back(&fut);
         start = end;
         end += block_size;
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
 }
@@ -245,7 +244,7 @@ void Game::update_tanks()
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
+    vector<future<void>> futures;
 
     // ========================================= Tank collisions 
 
@@ -258,50 +257,48 @@ void Game::update_tanks()
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end]  
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
-
-            //Check tank collision and nudge tanks away from each other
-            for (int i = start; i < end; i++)
-            {
-                vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
-                int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
-
-                Tank& tank = *tanks_to_loop_through.at(i - offset);
-
-                // Dont check for collision outside of screen
-                if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
-                    continue;
-                
-                std::unique_lock<std::mutex> lock(myMutex);
-                vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
-                lock.unlock();
 
                 //Check tank collision and nudge tanks away from each other
-                for (int i = 0; i < collision_candidates.size(); i++)
+                for (int i = start; i < end; i++)
                 {
-                    Tank* o_tank = collision_candidates.at(i);
+                    vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
+                    int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
 
-                    if (&tank == o_tank) continue;
+                    Tank& tank = *tanks_to_loop_through.at(i - offset);
 
-                    vec2 dir = tank.get_position() - (*o_tank).get_position();
+                    // Dont check for collision outside of screen
+                    if (is_outside_of_screen(tank.get_position().x, tank.get_position().y))
+                        continue;
 
-                    float dir_squared_len = dir.sqr_length();
+                    std::unique_lock<std::mutex> lock(myMutex);
+                    vector<Tank*> collision_candidates = get_tank_collision_candidates(tank.get_position().x, tank.get_position().y);
+                    lock.unlock();
 
-                    float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
-
-                    col_squared_len *= col_squared_len;
-
-                    if (dir_squared_len < col_squared_len)
+                    //Check tank collision and nudge tanks away from each other
+                    for (int i = 0; i < collision_candidates.size(); i++)
                     {
-                        tank.push(dir.normalized(), 1.f);
+                        Tank* o_tank = collision_candidates.at(i);
+
+                        if (&tank == o_tank) continue;
+
+                        vec2 dir = tank.get_position() - (*o_tank).get_position();
+
+                        float dir_squared_len = dir.sqr_length();
+
+                        float col_squared_len = (tank.get_collision_radius() + (*o_tank).get_collision_radius());
+
+                        col_squared_len *= col_squared_len;
+
+                        if (dir_squared_len < col_squared_len)
+                        {
+                            tank.push(dir.normalized(), 1.f);
+                        }
                     }
                 }
-            }   
 
-        }); 
-
-        futures.push_back(&fut);
+            }));
 
         start = end;
 
@@ -309,9 +306,9 @@ void Game::update_tanks()
 
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
     futures.clear();
@@ -331,34 +328,33 @@ void Game::update_tanks()
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end] 
+
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
 
-            for (int i = start; i < end; i++)
-            {
-                vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
-                int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
+                for (int i = start; i < end; i++)
+                {
+                    vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
+                    int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
 
-                Tank& tank = *tanks_to_loop_through.at(i - offset);
+                    Tank& tank = *tanks_to_loop_through.at(i - offset);
 
-                std::unique_lock<std::mutex> lock(myMutex);
+                    std::unique_lock<std::mutex> lock(myMutex);
 
-                // Update grid position and move tank
+                    // Update grid position and move tank
 
-                remove_tank_from_grid(tank);
+                    remove_tank_from_grid(tank);
 
-                lock.unlock();
+                    lock.unlock();
 
-                tank.tick();
+                    tank.tick();
 
-                lock.lock();
+                    lock.lock();
 
-                add_tank_to_grid(tank);
-            }
+                    add_tank_to_grid(tank);
+                }
 
-            });
-
-        futures.push_back(&fut);
+            }));
 
         start = end;
 
@@ -366,9 +362,9 @@ void Game::update_tanks()
 
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
     start = 0;
@@ -386,34 +382,32 @@ void Game::update_tanks()
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end] 
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
 
-            for (int i = start; i < end; i++)
-            {
-                vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
-                int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
-
-                Tank& tank = *tanks_to_loop_through.at(i - offset);
-
-                //Shoot at closest target if reloaded
-                if (tank.rocket_reloaded())
+                for (int i = start; i < end; i++)
                 {
-                    std::unique_lock<std::mutex> lock(myMutex);
+                    vector<Tank*>& tanks_to_loop_through = i < alive_blue_tanks.size() ? alive_blue_tanks : alive_red_tanks;
+                    int offset = i < alive_blue_tanks.size() ? 0 : alive_blue_tanks.size();
 
-                    Tank& target = find_closest_enemy(tank);
+                    Tank& tank = *tanks_to_loop_through.at(i - offset);
 
-                    rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
+                    //Shoot at closest target if reloaded
+                    if (tank.rocket_reloaded())
+                    {
+                        std::unique_lock<std::mutex> lock(myMutex);
 
-                    lock.unlock();
+                        Tank& target = find_closest_enemy(tank);
 
-                    tank.reload_rocket();
+                        rockets.push_back(Rocket(tank.position, (target.get_position() - tank.position).normalized() * 3, rocket_radius, tank.allignment, ((tank.allignment == RED) ? &rocket_red : &rocket_blue)));
+
+                        lock.unlock();
+
+                        tank.reload_rocket();
+                    }
                 }
-            }
 
-            });
-
-        futures.push_back(&fut);
+            }));
 
         start = end;
 
@@ -421,9 +415,9 @@ void Game::update_tanks()
 
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
 }
@@ -438,7 +432,7 @@ void Game::update_rockets()
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
+    vector<future<void>> futures;
 
     for (int i = 0; i < amount_of_threads; i++)
     {
@@ -449,7 +443,8 @@ void Game::update_rockets()
             current_remaining--;
         }
 
-        future<void> fut = thread_pool.enqueue([&, start, end]
+
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 for (int i = start; i < end; i++)
                 {
@@ -493,17 +488,15 @@ void Game::update_rockets()
                         }
                     }
                 }
-            });
-
-        futures.push_back(&fut);
+            }));
 
         start = end;
         end += block_size;
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        fut->wait();
+        fut.wait();
     }
 
     //Remove exploded rockets with remove erase idiom
@@ -581,50 +574,69 @@ void Game::draw()
 
 void Game::draw_tanks()
 {
-    int upper_limit = tanks.size();
+    // Sort tanks by x
+    std::vector<Tank*> sorted_tanks;
+    sorted_tanks.reserve(tanks.size());
+
+    for (Tank& tank : tanks) 
+        sorted_tanks.push_back(&tank);
+
+    merge_sort_x(sorted_tanks, 0, sorted_tanks.size() - 1, atomic<int>(amount_of_threads));
+
+    int upper_limit = sorted_tanks.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
     int end = start + block_size;
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
-
-    // One extra loop for first N amount of threads
-    if (current_remaining > 0)
-    {
-        end++;
-        current_remaining--;
-    }
+    vector<future<void>> futures;
 
     for (int i = 0; i < amount_of_threads; i++)
     {
-        future<void> fut = thread_pool.enqueue([&, start, end]
+        // One extra loop for first N amount of threads
+        if (current_remaining > 0)
+        {
+            end++;
+            current_remaining--;
+        }
+
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 for (int i = start; i < end; i++)
                 {
-                    tanks.at(i).draw(screen);
-                    vec2 tank_pos = tanks.at(i).get_position();
+                    Tank& tank = *sorted_tanks.at(i);
 
-                    // thread marks
+                    tank.draw(screen);
+                    vec2 tank_pos = tank.get_position();
+
+                    // Don't draw tanks outside of the screen
                     if ((tank_pos.x >= 0) && (tank_pos.x < SCRWIDTH) && (tank_pos.y >= 0) && (tank_pos.y < SCRHEIGHT))
                         background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH] = sub_blend(background.get_buffer()[(int)tank_pos.x + (int)tank_pos.y * SCRWIDTH], 0x808080);
                 }
-            });
+            }));
 
-        futures.push_back(&fut);
         start = end;
         end += block_size;
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 }
 
 void Game::draw_rockets()
 {
+    // Sort tanks by x
+    std::vector<Tank*> sorted_tanks;
+    sorted_tanks.reserve(tanks.size());
+
+    for (Tank& tank : tanks)
+        sorted_tanks.push_back(&tank);
+
+    merge_sort_x(sorted_tanks, 0, sorted_tanks.size() - 1, atomic<int>(amount_of_threads));
+
     int upper_limit = rockets.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
@@ -632,7 +644,9 @@ void Game::draw_rockets()
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
+    int screen_block_width = SCRWIDTH / amount_of_threads;
+
+    vector<future<void>> futures;
 
     // One extra loop for first N amount of threads
     if (current_remaining > 0)
@@ -643,22 +657,22 @@ void Game::draw_rockets()
 
     for (int i = 0; i < amount_of_threads; i++)
     {
-        future<void> fut = thread_pool.enqueue([&, start, end]
+
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 for (int i = start; i < end; i++)
                 {
                     rockets.at(i).draw(screen);
                 }
-            });
+            }));
 
-        futures.push_back(&fut);
         start = end;
         end += block_size;
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
 }
@@ -677,7 +691,7 @@ void Game::draw_smokes()
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
+    vector<future<void>> futures;
 
     // One extra loop for first N amount of threads
     if (current_remaining > 0)
@@ -688,22 +702,21 @@ void Game::draw_smokes()
 
     for (int i = 0; i < amount_of_threads; i++)
     {
-        future<void> fut = thread_pool.enqueue([&, start, end]
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 for (int i = start; i < end; i++)
                 {
                     smokes.at(i).draw(screen);
                 }
-            });
+            }));
 
-        futures.push_back(&fut);
         start = end;
         end += block_size;
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
 }
@@ -717,7 +730,7 @@ void Game::draw_explosions()
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    vector<future<void>*> futures;
+    vector<future<void>> futures;
 
     // One extra loop for first N amount of threads
     if (current_remaining > 0)
@@ -728,22 +741,22 @@ void Game::draw_explosions()
 
     for (int i = 0; i < amount_of_threads; i++)
     {
-        future<void> fut = thread_pool.enqueue([&, start, end]
+
+        futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 for (int i = start; i < end; i++)
                 {
                     explosions.at(i).draw(screen);
                 }
-            });
+            }));
 
-        futures.push_back(&fut);
         start = end;
         end += block_size;
     }
 
-    for (future<void>* fut : futures)
+    for (future<void>& fut : futures)
     {
-        (*fut).wait();
+        fut.wait();
     }
 
 }
@@ -839,6 +852,100 @@ void Tmpl8::Game::merge_sort(std::vector<Tank*>& sorted_tanks, int start, int en
             merge_sort(sorted_tanks, middle + 1, end, threads);
 
             merge(sorted_tanks, start, middle, end);
+        }
+    }
+
+}
+
+void Tmpl8::Game::merge_x(std::vector<Tank*>& sorted_tanks, int start, int middle, int end)
+{
+    int save_value = ((middle - start) + 1);
+    int save_value2 = (end - middle);
+    std::vector<Tank*> left_vector(save_value);
+    std::vector<Tank*> right_vector(save_value2);
+
+    // fill in left vector
+    for (int i = 0; i < left_vector.size(); ++i)
+    {
+        save_value = start + i;
+        left_vector[i] = sorted_tanks[save_value];
+    }
+
+    // fill in right vector
+    for (int i = 0; i < right_vector.size(); ++i)
+    {
+        save_value = (middle + 1 + i);
+        right_vector[i] = sorted_tanks[save_value];
+    }
+
+    /* Merge the temp vectors */
+
+    // initial indexes of first and second subvector
+    int left_index = 0, right_index = 0;
+
+    // the index we will start at when adding the subvector back into the main vector
+    int current_index = start;
+
+    // compare each index of the subvector adding the lowest value to the currentIndex
+    while (left_index < left_vector.size() && right_index < right_vector.size())
+    {
+
+        if (left_vector[left_index]->get_position().x <= right_vector[right_index]->get_position().x)
+        {
+            sorted_tanks[current_index] = left_vector[left_index];
+            left_index++;
+        }
+
+        else
+        {
+            sorted_tanks[current_index] = right_vector[right_index];
+            right_index++;
+        }
+
+        current_index++;
+    }
+
+    // copy remaining elements of left_vector if any
+    while (left_index < left_vector.size())
+        sorted_tanks[current_index++] = left_vector[left_index++];
+
+    // copy remaining elements of right_vector if any
+    while (right_index < right_vector.size())
+        sorted_tanks[current_index++] = right_vector[right_index++];
+}
+
+void Tmpl8::Game::merge_sort_x(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads)
+{
+
+    if (start < end)
+    {
+        // find the middle point
+        int middle = (start + end) / 2;
+
+        if (threads >= 1)
+        {
+            threads--;
+
+            future<void> future_left = thread_pool.enqueue([&]
+                {
+                    merge_sort_x(sorted_tanks, start, middle, threads);
+                });
+
+            merge_sort_x(sorted_tanks, middle + 1, end, threads);
+
+            future_left.wait();
+
+            threads++;
+
+            merge_x(sorted_tanks, start, middle, end);
+        }
+
+        else
+        {
+            merge_sort_x(sorted_tanks, start, middle, threads);
+            merge_sort_x(sorted_tanks, middle + 1, end, threads);
+
+            merge_x(sorted_tanks, start, middle, end);
         }
     }
 

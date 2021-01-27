@@ -22,6 +22,8 @@ class Game
     void tick(float deltaTime);
     void merge_sort(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads);
     void merge(std::vector<Tank*>& sorted_tanks, int start, int middle, int end);
+    void merge_sort_x(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads);
+    void merge_x(std::vector<Tank*>& sorted_tanks, int start, int middle, int end);
     void draw_tanks();
     void draw_rockets();
     void draw_smokes();

@@ -530,22 +530,20 @@ void Game::draw()
     {
         const int NUM_TANKS = ((t < 1) ? alive_blue_tanks.size() : alive_red_tanks.size());
 
-        const int begin = ((t < 1) ?  0 :  0);
+        const int begin = 0;
 
         std::vector<Tank*> sorted_tanks;
 
         if (t < 1) 
         {
             sorted_tanks = alive_blue_tanks;
-            std::atomic<int> threads(amount_of_threads);
-            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);
+            Merge_Functions::sort_tanks_by_health(sorted_tanks, begin, begin + NUM_TANKS - 1, atomic<int>(amount_of_threads), thread_pool);
         }
 
         else 
         {         
             sorted_tanks = alive_red_tanks;
-            std::atomic<int> threads = amount_of_threads;
-            merge_sort(sorted_tanks, begin, begin + NUM_TANKS - 1, threads);          
+            Merge_Functions::sort_tanks_by_health(sorted_tanks, begin, begin + NUM_TANKS - 1, atomic<int>(amount_of_threads), thread_pool);
         }
 
         // Draw all dead health bars
@@ -581,8 +579,9 @@ void Game::draw_tanks()
     for (Tank& tank : tanks) 
         sorted_tanks.push_back(&tank);
 
-    merge_sort_x(sorted_tanks, 0, sorted_tanks.size() - 1, atomic<int>(amount_of_threads));
+    Merge_Functions::sort_tanks_by_x(sorted_tanks, 0, sorted_tanks.size() - 1, atomic<int>(amount_of_threads), thread_pool);
 
+    // Divide over threads
     int upper_limit = sorted_tanks.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
@@ -628,41 +627,42 @@ void Game::draw_tanks()
 
 void Game::draw_rockets()
 {
-    // Sort tanks by x
-    std::vector<Tank*> sorted_tanks;
-    sorted_tanks.reserve(tanks.size());
+    if (rockets.size() == 0)
+        return;
 
-    for (Tank& tank : tanks)
-        sorted_tanks.push_back(&tank);
+    // Sort rockets by x
+    std::vector<Rocket*> sorted_rockets;
+    sorted_rockets.reserve(rockets.size());
 
-    merge_sort_x(sorted_tanks, 0, sorted_tanks.size() - 1, atomic<int>(amount_of_threads));
+    for (Rocket& rocket : rockets)
+        sorted_rockets.push_back(&rocket);
 
-    int upper_limit = rockets.size();
+    Merge_Functions::sort_rockets_by_x(sorted_rockets, 0, sorted_rockets.size() - 1, atomic<int>(amount_of_threads), thread_pool);
+
+    // Divide over threads
+    int upper_limit = sorted_rockets.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
     int end = start + block_size;
     int remaining = upper_limit % amount_of_threads;
     int current_remaining = remaining;
 
-    int screen_block_width = SCRWIDTH / amount_of_threads;
-
     vector<future<void>> futures;
-
-    // One extra loop for first N amount of threads
-    if (current_remaining > 0)
-    {
-        end++;
-        current_remaining--;
-    }
 
     for (int i = 0; i < amount_of_threads; i++)
     {
+        // One extra loop for first N amount of threads
+        if (current_remaining > 0)
+        {
+            end++;
+            current_remaining--;
+        }
 
         futures.push_back(thread_pool.enqueue([&, start, end]
             {
                 for (int i = start; i < end; i++)
                 {
-                    rockets.at(i).draw(screen);
+                    (*sorted_rockets.at(i)).draw(screen);
                 }
             }));
 
@@ -679,12 +679,20 @@ void Game::draw_rockets()
 
 void Game::draw_smokes()
 {
-    int upper_limit = smokes.size();
-
-    if (upper_limit == 0) {
+    if (smokes.size() == 0)
         return;
-    }
 
+    // Sort rockets by x
+    std::vector<Smoke*> sorted_smokes;
+    sorted_smokes.reserve(smokes.size());
+
+    for (Smoke& smoke : smokes)
+        sorted_smokes.push_back(&smoke);
+
+    Merge_Functions::sort_smokes_by_y(sorted_smokes, 0, sorted_smokes.size() - 1, atomic<int>(amount_of_threads), thread_pool);
+
+    // Divide over threads
+    int upper_limit = smokes.size();
     int block_size = upper_limit / amount_of_threads;
     int start = 0;
     int end = start + block_size;
@@ -706,7 +714,7 @@ void Game::draw_smokes()
             {
                 for (int i = start; i < end; i++)
                 {
-                    smokes.at(i).draw(screen);
+                    (*sorted_smokes.at(i)).draw(screen);
                 }
             }));
 
@@ -723,230 +731,10 @@ void Game::draw_smokes()
 
 void Game::draw_explosions()
 {
-    int upper_limit = explosions.size();
-    int block_size = upper_limit / amount_of_threads;
-    int start = 0;
-    int end = start + block_size;
-    int remaining = upper_limit % amount_of_threads;
-    int current_remaining = remaining;
 
-    vector<future<void>> futures;
-
-    // One extra loop for first N amount of threads
-    if (current_remaining > 0)
+    for (Explosion& explosion : explosions)
     {
-        end++;
-        current_remaining--;
-    }
-
-    for (int i = 0; i < amount_of_threads; i++)
-    {
-
-        futures.push_back(thread_pool.enqueue([&, start, end]
-            {
-                for (int i = start; i < end; i++)
-                {
-                    explosions.at(i).draw(screen);
-                }
-            }));
-
-        start = end;
-        end += block_size;
-    }
-
-    for (future<void>& fut : futures)
-    {
-        fut.wait();
-    }
-
-}
-
-// merges two subvectors of vector.
-void Tmpl8::Game::merge(std::vector<Tank*>& sorted_tanks, int start, int middle, int end) 
-{
-    int save_value = ((middle - start) + 1);
-    int save_value2 = (end - middle);
-    std::vector<Tank*> left_vector(save_value);
-    std::vector<Tank*> right_vector(save_value2);
-
-    // fill in left vector
-    for (int i = 0; i < left_vector.size(); ++i) 
-    {
-        save_value = start + i;
-        left_vector[i] = sorted_tanks[save_value];
-    }
-
-    // fill in right vector
-    for (int i = 0; i < right_vector.size(); ++i) 
-    {
-        save_value = (middle + 1 + i);
-        right_vector[i] = sorted_tanks[save_value];
-    }
-
-    /* Merge the temp vectors */
-
-    // initial indexes of first and second subvector
-    int left_index = 0, right_index = 0;
-
-    // the index we will start at when adding the subvector back into the main vector
-    int current_index = start;
-
-    // compare each index of the subvector adding the lowest value to the currentIndex
-    while (left_index < left_vector.size() && right_index < right_vector.size()) 
-    {
-
-        if (left_vector[left_index]->health <= right_vector[right_index]->health) 
-        {
-            sorted_tanks[current_index] = left_vector[left_index];
-            left_index++;
-        }
-
-        else 
-        {
-            sorted_tanks[current_index] = right_vector[right_index];
-            right_index++;
-        }
-
-        current_index++;
-    }
-
-    // copy remaining elements of left_vector if any
-    while (left_index < left_vector.size()) 
-        sorted_tanks[current_index++] = left_vector[left_index++];
-
-    // copy remaining elements of right_vector if any
-    while (right_index < right_vector.size()) 
-        sorted_tanks[current_index++] = right_vector[right_index++];
-}
-
-// main function that sorts array[start..end] using merge()
-void Tmpl8::Game::merge_sort(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads) 
-{
-
-    if (start < end) 
-    {
-        // find the middle point
-        int middle = (start + end) / 2;
-
-        if (threads >= 1) 
-        {
-            threads --;
-
-            future<void> future_left = thread_pool.enqueue([&] 
-                {
-                    merge_sort(sorted_tanks, start, middle, threads);
-                });
-
-            merge_sort(sorted_tanks, middle + 1, end, threads);
-
-            future_left.wait();
-
-            threads++;
-
-            merge(sorted_tanks, start, middle, end);
-        }
-
-        else 
-        {
-            merge_sort(sorted_tanks, start, middle, threads);
-            merge_sort(sorted_tanks, middle + 1, end, threads);
-
-            merge(sorted_tanks, start, middle, end);
-        }
-    }
-
-}
-
-void Tmpl8::Game::merge_x(std::vector<Tank*>& sorted_tanks, int start, int middle, int end)
-{
-    int save_value = ((middle - start) + 1);
-    int save_value2 = (end - middle);
-    std::vector<Tank*> left_vector(save_value);
-    std::vector<Tank*> right_vector(save_value2);
-
-    // fill in left vector
-    for (int i = 0; i < left_vector.size(); ++i)
-    {
-        save_value = start + i;
-        left_vector[i] = sorted_tanks[save_value];
-    }
-
-    // fill in right vector
-    for (int i = 0; i < right_vector.size(); ++i)
-    {
-        save_value = (middle + 1 + i);
-        right_vector[i] = sorted_tanks[save_value];
-    }
-
-    /* Merge the temp vectors */
-
-    // initial indexes of first and second subvector
-    int left_index = 0, right_index = 0;
-
-    // the index we will start at when adding the subvector back into the main vector
-    int current_index = start;
-
-    // compare each index of the subvector adding the lowest value to the currentIndex
-    while (left_index < left_vector.size() && right_index < right_vector.size())
-    {
-
-        if (left_vector[left_index]->get_position().x <= right_vector[right_index]->get_position().x)
-        {
-            sorted_tanks[current_index] = left_vector[left_index];
-            left_index++;
-        }
-
-        else
-        {
-            sorted_tanks[current_index] = right_vector[right_index];
-            right_index++;
-        }
-
-        current_index++;
-    }
-
-    // copy remaining elements of left_vector if any
-    while (left_index < left_vector.size())
-        sorted_tanks[current_index++] = left_vector[left_index++];
-
-    // copy remaining elements of right_vector if any
-    while (right_index < right_vector.size())
-        sorted_tanks[current_index++] = right_vector[right_index++];
-}
-
-void Tmpl8::Game::merge_sort_x(std::vector<Tank*>& sorted_tanks, int start, int end, std::atomic<int>& threads)
-{
-
-    if (start < end)
-    {
-        // find the middle point
-        int middle = (start + end) / 2;
-
-        if (threads >= 1)
-        {
-            threads--;
-
-            future<void> future_left = thread_pool.enqueue([&]
-                {
-                    merge_sort_x(sorted_tanks, start, middle, threads);
-                });
-
-            merge_sort_x(sorted_tanks, middle + 1, end, threads);
-
-            future_left.wait();
-
-            threads++;
-
-            merge_x(sorted_tanks, start, middle, end);
-        }
-
-        else
-        {
-            merge_sort_x(sorted_tanks, start, middle, threads);
-            merge_sort_x(sorted_tanks, middle + 1, end, threads);
-
-            merge_x(sorted_tanks, start, middle, end);
-        }
+        explosion.draw(screen);
     }
 
 }
